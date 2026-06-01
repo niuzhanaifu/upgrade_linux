@@ -9,6 +9,8 @@ const configList = document.querySelector("#configList");
 const logView = document.querySelector("#logView");
 const jobMeta = document.querySelector("#jobMeta");
 const jobList = document.querySelector("#jobList");
+const firmwareList = document.querySelector("#firmwareList");
+const buildRecordList = document.querySelector("#buildRecordList");
 const incrementalBuildButton = document.querySelector("#incrementalBuildButton");
 const fullBuildButton = document.querySelector("#fullBuildButton");
 const upgradeButton = document.querySelector("#upgradeButton");
@@ -54,6 +56,19 @@ function renderConfig(config) {
     .join("");
 }
 
+function escapeHtml(value) {
+  return String(value ?? "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
+function formatTime(value) {
+  return value ? new Date(value).toLocaleString() : "-";
+}
+
 function jobLabel(job) {
   const kindMap = {
     build: "编译",
@@ -69,6 +84,20 @@ function jobLabel(job) {
     failed: "失败",
   };
   return `${kind} · ${statusMap[job.status] || job.status}`;
+}
+
+function recordStatusText(status) {
+  const statusMap = {
+    queued: "排队中",
+    running: "运行中",
+    succeeded: "成功",
+    failed: "失败",
+  };
+  return statusMap[status] || status || "-";
+}
+
+function modeText(mode) {
+  return mode === "full" ? "全量" : "增量";
 }
 
 function setButtonsBusy(busy) {
@@ -112,6 +141,56 @@ async function loadJobs() {
   });
 }
 
+async function loadFirmwares() {
+  const data = await api("/api/v1/firmwares");
+  if (!data.firmwares.length) {
+    firmwareList.innerHTML = `<p class="empty">暂无可下载固件</p>`;
+    return;
+  }
+
+  firmwareList.innerHTML = data.firmwares
+    .map((firmware) => {
+      const disabled = firmware.exists ? "" : "disabled";
+      const href = firmware.exists ? `/api/v1/firmwares/${encodeURIComponent(firmware.id)}/download` : "#";
+      const sizeText = firmware.exists ? `${Math.ceil(firmware.size / 1024)} KB` : "文件不存在";
+      return `
+        <div class="record-item">
+          <div class="record-title">${escapeHtml(firmware.name)}</div>
+          <div class="record-line"><span>版本</span><strong>${escapeHtml(firmware.firmware_version || "-")}</strong></div>
+          <div class="record-line"><span>类型</span><strong>${modeText(firmware.mode)}</strong></div>
+          <div class="record-line"><span>大小</span><strong>${sizeText}</strong></div>
+          <div class="record-path">${escapeHtml(firmware.output_dir || "")}</div>
+          <a class="download-button ${disabled}" href="${href}">下载</a>
+        </div>
+      `;
+    })
+    .join("");
+}
+
+async function loadBuildRecords() {
+  const data = await api("/api/v1/build-records");
+  if (!data.records.length) {
+    buildRecordList.innerHTML = `<p class="empty">暂无编译记录</p>`;
+    return;
+  }
+
+  buildRecordList.innerHTML = data.records
+    .slice(0, 20)
+    .map((record) => {
+      return `
+        <div class="record-item">
+          <div class="record-title">${modeText(record.mode)}编译 · ${recordStatusText(record.status)}</div>
+          <div class="record-line"><span>触发</span><strong>${formatTime(record.created_at)}</strong></div>
+          <div class="record-line"><span>结束</span><strong>${formatTime(record.finished_at)}</strong></div>
+          <div class="record-line"><span>版本</span><strong>${escapeHtml(record.firmware_version || "-")}</strong></div>
+          <div class="record-path">${escapeHtml(record.output_dir || "无输出目录")}</div>
+          <div class="record-path">${escapeHtml(record.merged_bin || "无固件路径")}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 async function startJob(kind) {
   const endpoints = {
     build_incremental: "/api/v1/build/incremental",
@@ -125,6 +204,8 @@ async function startJob(kind) {
     const data = await api(endpoint, { method: "POST" });
     await selectJob(data.job.id);
     await loadJobs();
+    await loadBuildRecords();
+    await loadFirmwares();
   } catch (error) {
     logView.textContent = `启动失败：${error.message}`;
     setButtonsBusy(false);
@@ -158,6 +239,8 @@ async function pollLogs() {
     if (!busy) {
       clearInterval(state.pollTimer);
       await loadJobs();
+      await loadBuildRecords();
+      await loadFirmwares();
     }
   } catch (error) {
     jobMeta.textContent = "日志读取失败";
@@ -173,6 +256,8 @@ upgradeButton.addEventListener("click", () => startJob("upgrade"));
 refreshButton.addEventListener("click", async () => {
   await loadConfig();
   await loadJobs();
+  await loadBuildRecords();
+  await loadFirmwares();
   if (state.activeJobId) {
     await pollLogs();
   }
@@ -181,4 +266,10 @@ refreshButton.addEventListener("click", async () => {
 loadConfig();
 loadJobs().catch((error) => {
   jobList.innerHTML = `<p class="empty">读取任务失败：${error.message}</p>`;
+});
+loadBuildRecords().catch((error) => {
+  buildRecordList.innerHTML = `<p class="empty">读取编译记录失败：${error.message}</p>`;
+});
+loadFirmwares().catch((error) => {
+  firmwareList.innerHTML = `<p class="empty">读取固件失败：${error.message}</p>`;
 });

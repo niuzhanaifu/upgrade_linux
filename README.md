@@ -52,6 +52,7 @@ export ESP_UPGRADE_UPGRADE_COMMAND="python3 tools/upgrade.py --firmware {firmwar
 | `ESP_UPGRADE_BUILD_SCRIPT_WORKDIR` | `/root/codebase/esp32/projects` | 编译脚本运行目录 |
 | `ESP_UPGRADE_BUILD_INCREMENTAL_ARG` | `--incremental` | 增量编译参数 |
 | `ESP_UPGRADE_BUILD_FULL_ARG` | `--full` | 全量编译参数 |
+| `ESP_UPGRADE_BUILD_RECORDS_PATH` | `$ESP_UPGRADE_BASE_DIR/build_records.json` | 编译记录文件 |
 | `ESP_UPGRADE_BUILD_COMMAND` | 空 | 旧编译命令配置，当前编译接口使用脚本 |
 | `ESP_UPGRADE_BUILD_WORKDIR` | `$ESP_UPGRADE_SOURCE_DIR` | 编译命令运行目录 |
 | `ESP_UPGRADE_FIRMWARE_PATH` | 空 | 固件路径 |
@@ -156,6 +157,14 @@ POST /api/v1/build/full
 ```bash
 curl http://14.103.183.47:8010/api/v1/jobs/{job_id}
 curl http://14.103.183.47:8010/api/v1/jobs/{job_id}/logs
+```
+
+查询编译记录和可下载固件：
+
+```bash
+curl http://14.103.183.47:8010/api/v1/build-records
+curl http://14.103.183.47:8010/api/v1/firmwares
+curl -OJ http://14.103.183.47:8010/api/v1/firmwares/{record_id}/download
 ```
 
 成功后的 `job.result` 示例：

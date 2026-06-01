@@ -42,6 +42,10 @@ class Settings:
     firmware_path: str = os.getenv("ESP_UPGRADE_FIRMWARE_PATH", "").strip()
     upgrade_command: str = os.getenv("ESP_UPGRADE_UPGRADE_COMMAND", "").strip()
     max_log_lines: int = int(os.getenv("ESP_UPGRADE_MAX_LOG_LINES", "3000"))
+    build_records_path: Path = _path_from_env(
+        "ESP_UPGRADE_BUILD_RECORDS_PATH",
+        str(_path_from_env("ESP_UPGRADE_BASE_DIR", "./var") / "build_records.json"),
+    )
     ota_public_base_url: str = os.getenv("ESP_OTA_PUBLIC_BASE_URL", "http://14.103.183.47:8010").strip().rstrip("/")
     ota_latest_version: str = os.getenv("ESP_OTA_LATEST_VERSION", "").strip()
     ota_firmware_dir: Path = _path_from_env("ESP_OTA_FIRMWARE_DIR", "/codebase/upgrade_linux/firmwares")

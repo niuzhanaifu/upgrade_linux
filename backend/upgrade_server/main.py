@@ -113,6 +113,24 @@ def get_job_logs(job_id: str, offset: int = 0) -> dict:
     return data
 
 
+@app.get("/api/v1/build-records")
+def list_build_records() -> dict:
+    return {"records": jobs.list_build_records()}
+
+
+@app.get("/api/v1/firmwares")
+def list_built_firmwares() -> dict:
+    return {"firmwares": jobs.list_firmwares()}
+
+
+@app.get("/api/v1/firmwares/{record_id}/download")
+def download_built_firmware(record_id: str) -> FileResponse:
+    path = jobs.get_firmware_path(record_id)
+    if path is None:
+        raise HTTPException(status_code=404, detail="firmware not found")
+    return FileResponse(path, media_type="application/octet-stream", filename=path.name)
+
+
 @app.post("/v1/firmware/ota/")
 async def check_firmware_ota(request: Request) -> dict:
     return await build_ota_response(request, settings)

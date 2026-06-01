@@ -10,6 +10,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Callable
 
+from .build_records import BuildRecordStore
 from .config import Settings
 
 
@@ -42,6 +43,7 @@ class Job:
 class JobManager:
     def __init__(self, settings: Settings):
         self.settings = settings
+        self.records = BuildRecordStore(settings)
         self._jobs: dict[str, Job] = {}
         self._lock = threading.Lock()
 
@@ -65,6 +67,15 @@ class JobManager:
                 "lines": job.logs[offset:],
             }
 
+    def list_build_records(self) -> list[dict[str, object]]:
+        return self.records.list_records()
+
+    def list_firmwares(self) -> list[dict[str, object]]:
+        return self.records.list_firmwares()
+
+    def get_firmware_path(self, record_id: str) -> Path | None:
+        return self.records.get_firmware_path(record_id)
+
     def start_build(self, full: bool = False) -> Job:
         kind = "build_full" if full else "build_incremental"
         return self._start(kind, lambda job: self._run_build(job, full=full))
@@ -75,6 +86,9 @@ class JobManager:
     def _start(self, kind: str, worker: Callable[[Job], None]) -> Job:
         with self._lock:
             running = [job for job in self._jobs.values() if job.status in {"queued", "running"}]
+            running_build = [job for job in running if job.kind.startswith("build")]
+            if kind.startswith("build") and running_build:
+                raise RuntimeError("已有编译任务正在运行")
             if running:
                 raise RuntimeError("another job is already running")
             job = Job(id=str(uuid.uuid4()), kind=kind)
@@ -117,9 +131,11 @@ class JobManager:
             else:
                 self._set_status(job, "failed", int(result["returncode"]))
                 self._append(job, f"ERROR: build failed with exit code {result['returncode']}")
+            self._try_save_build_record(job)
         except Exception as exc:
             self._append(job, f"ERROR: {exc}")
             self._set_status(job, "failed", 1)
+            self._try_save_build_record(job)
 
     def _run_upgrade(self, job: Job) -> None:
         self._set_status(job, "running")
@@ -211,6 +227,38 @@ class JobManager:
         result["returncode"] = returncode
         result["success"] = returncode == 0
         return result
+
+    def _save_build_record(self, job: Job) -> None:
+        if not job.kind.startswith("build"):
+            return
+
+        result = job.result or {}
+        merged_bin = result.get("merged_bin")
+        path = Path(str(merged_bin)).expanduser() if merged_bin else None
+        record: dict[str, object] = {
+            "id": job.id,
+            "kind": job.kind,
+            "mode": result.get("mode") or ("full" if job.kind == "build_full" else "incremental"),
+            "status": job.status,
+            "created_at": job.created_at,
+            "started_at": job.started_at,
+            "finished_at": job.finished_at,
+            "exit_code": job.exit_code,
+            "success": job.status == "succeeded",
+            "output_dir": result.get("output_dir"),
+            "merged_bin": merged_bin,
+            "firmware_name": path.name if path is not None else None,
+            "firmware_exists": path.is_file() if path is not None else False,
+            "firmware_size": path.stat().st_size if path is not None and path.is_file() else 0,
+            "firmware_version": result.get("firmware_version"),
+        }
+        self.records.save_record(record)
+
+    def _try_save_build_record(self, job: Job) -> None:
+        try:
+            self._save_build_record(job)
+        except Exception as exc:
+            self._append(job, f"WARNING: failed to save build record: {exc}")
 
     def _run_shell(self, job: Job, command: str, cwd: Path) -> None:
         self._append(job, f"$ {command}")

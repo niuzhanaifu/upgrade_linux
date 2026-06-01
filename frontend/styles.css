@@ -99,7 +99,9 @@ h2 {
 }
 
 .actions-panel,
-.history-panel {
+.history-panel,
+.firmware-panel,
+.build-record-panel {
   padding: 18px;
 }
 
@@ -224,6 +226,12 @@ h2 {
   gap: 10px;
 }
 
+.record-list,
+.firmware-list {
+  display: grid;
+  gap: 10px;
+}
+
 .job-item {
   display: grid;
   gap: 5px;
@@ -247,6 +255,60 @@ h2 {
   gap: 10px;
   color: #667686;
   font-size: 12px;
+}
+
+.record-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8ef;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.record-title {
+  color: #263443;
+  font-size: 14px;
+  font-weight: 800;
+}
+
+.record-line {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  color: #667686;
+  font-size: 12px;
+}
+
+.record-line strong {
+  color: #263443;
+  font-weight: 700;
+  text-align: right;
+}
+
+.record-path {
+  overflow-wrap: anywhere;
+  color: #536170;
+  font: 12px/1.45 "Cascadia Code", Consolas, monospace;
+}
+
+.download-button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 34px;
+  border-radius: 8px;
+  background: #176b87;
+  color: #fff;
+  font-size: 13px;
+  font-weight: 800;
+  text-decoration: none;
+}
+
+.download-button.disabled {
+  pointer-events: none;
+  background: #d9e1e8;
+  color: #7b8792;
 }
 
 .empty {
