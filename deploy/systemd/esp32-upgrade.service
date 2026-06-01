@@ -1,0 +1,17 @@
+[Unit]
+Description=ESP32 Upgrade Server
+After=network.target
+
+[Service]
+Type=simple
+WorkingDirectory=/codebase/upgrade_linux/backend
+Environment=ESP_UPGRADE_HOST=0.0.0.0
+Environment=ESP_UPGRADE_PORT=8010
+Environment=ESP_UPGRADE_BASE_DIR=/codebase/upgrade_linux/work
+EnvironmentFile=-/etc/esp32-upgrade.env
+ExecStart=/codebase/upgrade_linux/backend/.venv/bin/uvicorn upgrade_server.main:app --host 0.0.0.0 --port 8010
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

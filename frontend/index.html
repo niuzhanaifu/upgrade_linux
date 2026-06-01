@@ -1,0 +1,67 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>ESP32 升级平台</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+  </head>
+  <body>
+    <header class="topbar">
+      <div>
+        <p class="eyebrow">ESP32 Firmware Ops</p>
+        <h1>升级平台</h1>
+      </div>
+      <div class="status-pill" id="serviceStatus">连接中</div>
+    </header>
+
+    <main class="layout">
+      <section class="panel actions-panel">
+        <div class="section-heading">
+          <div>
+            <h2>操作</h2>
+            <p>拉取代码、编译固件、执行升级</p>
+          </div>
+        </div>
+        <div class="action-grid">
+          <button class="primary-button" id="incrementalBuildButton" type="button">
+            <span class="button-icon">▶</span>
+            <span>增量编译</span>
+          </button>
+          <button class="primary-button" id="fullBuildButton" type="button">
+            <span class="button-icon">●</span>
+            <span>全量编译</span>
+          </button>
+          <button class="secondary-button" id="upgradeButton" type="button">
+            <span class="button-icon">↑</span>
+            <span>升级</span>
+          </button>
+        </div>
+        <div class="config-list" id="configList"></div>
+      </section>
+
+      <section class="panel log-panel">
+        <div class="section-heading">
+          <div>
+            <h2>任务输出</h2>
+            <p id="jobMeta">暂无任务</p>
+          </div>
+          <button class="ghost-button" id="refreshButton" type="button">刷新</button>
+        </div>
+        <pre class="log-view" id="logView">等待操作...</pre>
+      </section>
+
+      <section class="panel history-panel">
+        <div class="section-heading">
+          <div>
+            <h2>历史任务</h2>
+            <p>最近的编译和升级记录</p>
+          </div>
+        </div>
+        <div class="job-list" id="jobList"></div>
+      </section>
+    </main>
+
+    <script src="/assets/app.js"></script>
+  </body>
+</html>

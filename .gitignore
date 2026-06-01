@@ -1,0 +1,5 @@
+backend/.venv/
+backend/upgrade_server/__pycache__/
+var/
+*.pyc
+firmwares/*.bin
