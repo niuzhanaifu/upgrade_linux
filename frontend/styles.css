@@ -82,6 +82,34 @@ h2 {
   color: #b83232;
 }
 
+.product-tabs {
+  display: flex;
+  gap: 8px;
+  max-width: 1180px;
+  margin: 0 auto 18px;
+  padding: 0 24px;
+}
+
+.tab-button {
+  min-height: 38px;
+  padding: 0 16px;
+  border: 1px solid #d7e0e8;
+  border-radius: 8px;
+  background: #fff;
+  color: #536170;
+  font-weight: 800;
+}
+
+.tab-button.active {
+  border-color: #176b87;
+  background: #176b87;
+  color: #fff;
+}
+
+.product-view[hidden] {
+  display: none;
+}
+
 .layout {
   display: grid;
   grid-template-columns: 360px minmax(0, 1fr);
@@ -101,8 +129,13 @@ h2 {
 .actions-panel,
 .history-panel,
 .firmware-panel,
-.build-record-panel {
+.build-record-panel,
+.linux-panel {
   padding: 18px;
+}
+
+.linux-panel {
+  grid-column: 1 / -1;
 }
 
 .log-panel {
@@ -309,6 +342,69 @@ h2 {
   pointer-events: none;
   background: #d9e1e8;
   color: #7b8792;
+}
+
+.record-collapse summary {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 14px;
+  cursor: pointer;
+  list-style: none;
+}
+
+.record-collapse summary::-webkit-details-marker {
+  display: none;
+}
+
+.record-collapse summary strong {
+  display: block;
+  color: #263443;
+  font-size: 18px;
+}
+
+.record-collapse summary small {
+  display: block;
+  margin-top: 4px;
+  color: #637282;
+  font-size: 13px;
+}
+
+.record-collapse .summary-icon {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  background: #eef3f7;
+  color: #31445a;
+  font-weight: 900;
+}
+
+.record-collapse[open] .summary-icon {
+  transform: rotate(180deg);
+}
+
+.record-collapse .record-list {
+  margin-top: 16px;
+}
+
+.placeholder-box {
+  display: grid;
+  gap: 8px;
+  min-height: 180px;
+  align-content: center;
+  padding: 24px;
+  border: 1px dashed #cbd7e2;
+  border-radius: 8px;
+  background: #f8fafc;
+  color: #536170;
+}
+
+.placeholder-box strong {
+  color: #263443;
+  font-size: 18px;
 }
 
 .empty {

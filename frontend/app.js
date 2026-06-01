@@ -11,6 +11,10 @@ const jobMeta = document.querySelector("#jobMeta");
 const jobList = document.querySelector("#jobList");
 const firmwareList = document.querySelector("#firmwareList");
 const buildRecordList = document.querySelector("#buildRecordList");
+const buildRecordDetails = document.querySelector("#buildRecordDetails");
+const buildRecordCount = document.querySelector("#buildRecordCount");
+const tabButtons = document.querySelectorAll(".tab-button");
+const productViews = document.querySelectorAll(".product-view");
 const incrementalBuildButton = document.querySelector("#incrementalBuildButton");
 const fullBuildButton = document.querySelector("#fullBuildButton");
 const upgradeButton = document.querySelector("#upgradeButton");
@@ -32,6 +36,18 @@ async function api(path, options = {}) {
     throw new Error(message);
   }
   return response.json();
+}
+
+function switchProductView(targetId) {
+  productViews.forEach((view) => {
+    const active = view.id === targetId;
+    view.classList.toggle("active", active);
+    view.hidden = !active;
+  });
+
+  tabButtons.forEach((button) => {
+    button.classList.toggle("active", button.dataset.target === targetId);
+  });
 }
 
 function setServiceStatus(ok, text) {
@@ -169,6 +185,12 @@ async function loadFirmwares() {
 
 async function loadBuildRecords() {
   const data = await api("/api/v1/build-records");
+  if (buildRecordDetails) {
+    buildRecordDetails.dataset.count = String(data.records.length);
+  }
+  if (buildRecordCount) {
+    buildRecordCount.textContent = String(data.records.length);
+  }
   if (!data.records.length) {
     buildRecordList.innerHTML = `<p class="empty">暂无编译记录</p>`;
     return;
@@ -253,6 +275,9 @@ async function pollLogs() {
 incrementalBuildButton.addEventListener("click", () => startJob("build_incremental"));
 fullBuildButton.addEventListener("click", () => startJob("build_full"));
 upgradeButton.addEventListener("click", () => startJob("upgrade"));
+tabButtons.forEach((button) => {
+  button.addEventListener("click", () => switchProductView(button.dataset.target));
+});
 refreshButton.addEventListener("click", async () => {
   await loadConfig();
   await loadJobs();

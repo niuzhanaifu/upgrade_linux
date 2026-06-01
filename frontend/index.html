@@ -9,13 +9,18 @@
   <body>
     <header class="topbar">
       <div>
-        <p class="eyebrow">ESP32 Firmware Ops</p>
+        <p class="eyebrow">Firmware Ops</p>
         <h1>升级平台</h1>
       </div>
       <div class="status-pill" id="serviceStatus">连接中</div>
     </header>
 
-    <main class="layout">
+    <nav class="product-tabs" aria-label="升级类型">
+      <button class="tab-button active" id="esp32Tab" type="button" data-target="esp32View">ESP32升级</button>
+      <button class="tab-button" id="linuxTab" type="button" data-target="linuxView">Linux升级</button>
+    </nav>
+
+    <main class="layout product-view active" id="esp32View">
       <section class="panel actions-panel">
         <div class="section-heading">
           <div>
@@ -72,13 +77,31 @@
       </section>
 
       <section class="panel build-record-panel">
+        <details class="record-collapse" id="buildRecordDetails">
+          <summary>
+            <span>
+              <strong>编译记录</strong>
+              <small>触发时间、结果和存放目录 · <span id="buildRecordCount">0</span></small>
+            </span>
+            <span class="summary-icon">⌄</span>
+          </summary>
+          <div class="record-list" id="buildRecordList"></div>
+        </details>
+      </section>
+    </main>
+
+    <main class="layout product-view" id="linuxView" hidden>
+      <section class="panel linux-panel">
         <div class="section-heading">
           <div>
-            <h2>编译记录</h2>
-            <p>触发时间、结果和存放目录</p>
+            <h2>Linux升级</h2>
+            <p>后端能力暂未接入</p>
           </div>
         </div>
-        <div class="record-list" id="buildRecordList"></div>
+        <div class="placeholder-box">
+          <strong>待实现</strong>
+          <p>这里将用于 Linux 服务代码拉取、编译、发布和升级。当前只完成前端入口。</p>
+        </div>
       </section>
     </main>
 
