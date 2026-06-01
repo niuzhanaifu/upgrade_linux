@@ -299,6 +299,20 @@ h2 {
   background: #fbfcfd;
 }
 
+.record-item.clickable {
+  cursor: pointer;
+}
+
+.record-item.clickable:hover {
+  border-color: #9fc2d0;
+  background: #f4f9fb;
+}
+
+.firmware-item.selected {
+  border-color: #176b87;
+  box-shadow: inset 3px 0 0 #176b87;
+}
+
 .record-title {
   color: #263443;
   font-size: 14px;

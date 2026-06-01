@@ -2,6 +2,7 @@ const state = {
   activeJobId: null,
   logOffset: 0,
   pollTimer: null,
+  selectedFirmwareId: null,
 };
 
 const serviceStatus = document.querySelector("#serviceStatus");
@@ -10,6 +11,8 @@ const logView = document.querySelector("#logView");
 const jobMeta = document.querySelector("#jobMeta");
 const jobList = document.querySelector("#jobList");
 const firmwareList = document.querySelector("#firmwareList");
+const firmwareDetails = document.querySelector("#firmwareDetails");
+const firmwareCount = document.querySelector("#firmwareCount");
 const buildRecordList = document.querySelector("#buildRecordList");
 const buildRecordDetails = document.querySelector("#buildRecordDetails");
 const buildRecordCount = document.querySelector("#buildRecordCount");
@@ -159,6 +162,9 @@ async function loadJobs() {
 
 async function loadFirmwares() {
   const data = await api("/api/v1/firmwares");
+  if (firmwareCount) {
+    firmwareCount.textContent = String(data.firmwares.length);
+  }
   if (!data.firmwares.length) {
     firmwareList.innerHTML = `<p class="empty">暂无可下载固件</p>`;
     return;
@@ -167,10 +173,11 @@ async function loadFirmwares() {
   firmwareList.innerHTML = data.firmwares
     .map((firmware) => {
       const disabled = firmware.exists ? "" : "disabled";
+      const selected = firmware.id === state.selectedFirmwareId ? "selected" : "";
       const href = firmware.exists ? `/api/v1/firmwares/${encodeURIComponent(firmware.id)}/download` : "#";
       const sizeText = firmware.exists ? `${Math.ceil(firmware.size / 1024)} KB` : "文件不存在";
       return `
-        <div class="record-item">
+        <div class="record-item firmware-item ${selected}" data-firmware-id="${escapeHtml(firmware.id)}">
           <div class="record-title">${escapeHtml(firmware.name)}</div>
           <div class="record-line"><span>版本</span><strong>${escapeHtml(firmware.firmware_version || "-")}</strong></div>
           <div class="record-line"><span>类型</span><strong>${modeText(firmware.mode)}</strong></div>
@@ -199,8 +206,9 @@ async function loadBuildRecords() {
   buildRecordList.innerHTML = data.records
     .slice(0, 20)
     .map((record) => {
+      const selectable = record.status === "succeeded" && record.firmware_exists;
       return `
-        <div class="record-item">
+        <div class="record-item build-record-item ${selectable ? "clickable" : ""}" data-record-id="${escapeHtml(record.id)}" data-selectable="${selectable ? "1" : "0"}">
           <div class="record-title">${modeText(record.mode)}编译 · ${recordStatusText(record.status)}</div>
           <div class="record-line"><span>触发</span><strong>${formatTime(record.created_at)}</strong></div>
           <div class="record-line"><span>结束</span><strong>${formatTime(record.finished_at)}</strong></div>
@@ -211,6 +219,22 @@ async function loadBuildRecords() {
       `;
     })
     .join("");
+
+  buildRecordList.querySelectorAll(".build-record-item[data-selectable='1']").forEach((item) => {
+    item.addEventListener("click", async () => {
+      state.selectedFirmwareId = item.dataset.recordId;
+      if (firmwareDetails) {
+        firmwareDetails.open = true;
+      }
+      await loadFirmwares();
+      const firmwareItem = Array.from(firmwareList.querySelectorAll("[data-firmware-id]")).find(
+        (item) => item.dataset.firmwareId === state.selectedFirmwareId,
+      );
+      if (firmwareItem) {
+        firmwareItem.scrollIntoView({ behavior: "smooth", block: "nearest" });
+      }
+    });
+  });
 }
 
 async function startJob(kind) {

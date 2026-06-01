@@ -76,6 +76,23 @@ class JobManager:
     def get_firmware_path(self, record_id: str) -> Path | None:
         return self.records.get_firmware_path(record_id)
 
+    def cleanup_before(self, cutoff: datetime) -> dict[str, int]:
+        record_result = self.records.cleanup_before(cutoff)
+        with self._lock:
+            before_count = len(self._jobs)
+            kept_jobs = {}
+            for job_id, job in self._jobs.items():
+                job_time = _parse_job_time(job.finished_at or job.created_at)
+                if job.status in {"queued", "running"} or job_time is None or job_time >= cutoff:
+                    kept_jobs[job_id] = job
+            self._jobs = kept_jobs
+            removed_jobs = before_count - len(self._jobs)
+
+        return {
+            **record_result,
+            "removed_jobs": removed_jobs,
+        }
+
     def start_build(self, full: bool = False) -> Job:
         kind = "build_full" if full else "build_incremental"
         return self._start(kind, lambda job: self._run_build(job, full=full))
@@ -295,3 +312,15 @@ class JobManager:
         if check and exit_code != 0:
             raise RuntimeError(f"command failed with exit code {exit_code}")
         return exit_code
+
+
+def _parse_job_time(value: str | None) -> datetime | None:
+    if not value:
+        return None
+    try:
+        parsed = datetime.fromisoformat(value)
+    except ValueError:
+        return None
+    if parsed.tzinfo is None:
+        return parsed.astimezone()
+    return parsed

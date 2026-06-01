@@ -53,6 +53,10 @@ export ESP_UPGRADE_UPGRADE_COMMAND="python3 tools/upgrade.py --firmware {firmwar
 | `ESP_UPGRADE_BUILD_INCREMENTAL_ARG` | `--incremental` | 增量编译参数 |
 | `ESP_UPGRADE_BUILD_FULL_ARG` | `--full` | 全量编译参数 |
 | `ESP_UPGRADE_BUILD_RECORDS_PATH` | `$ESP_UPGRADE_BASE_DIR/build_records.json` | 编译记录文件 |
+| `ESP_UPGRADE_CLEANUP_ENABLED` | `1` | 是否开启定时清理 |
+| `ESP_UPGRADE_CLEANUP_RETENTION_DAYS` | `14` | 保留最近多少天的任务和编译记录 |
+| `ESP_UPGRADE_CLEANUP_HOUR` | `3` | 每天清理小时，北京时间 |
+| `ESP_UPGRADE_CLEANUP_MINUTE` | `0` | 每天清理分钟，北京时间 |
 | `ESP_UPGRADE_BUILD_COMMAND` | 空 | 旧编译命令配置，当前编译接口使用脚本 |
 | `ESP_UPGRADE_BUILD_WORKDIR` | `$ESP_UPGRADE_SOURCE_DIR` | 编译命令运行目录 |
 | `ESP_UPGRADE_FIRMWARE_PATH` | 空 | 固件路径 |
@@ -167,6 +171,8 @@ curl http://14.103.183.47:8010/api/v1/build-records
 curl http://14.103.183.47:8010/api/v1/firmwares
 curl -OJ http://14.103.183.47:8010/api/v1/firmwares/{record_id}/download
 ```
+
+服务端每天北京时间 03:00 会清理超过 14 天的内存任务日志、编译记录和记录里指向的固件文件，避免固件持续占用服务器空间。
 
 成功后的 `job.result` 示例：
 

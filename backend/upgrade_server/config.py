@@ -46,6 +46,10 @@ class Settings:
         "ESP_UPGRADE_BUILD_RECORDS_PATH",
         str(_path_from_env("ESP_UPGRADE_BASE_DIR", "./var") / "build_records.json"),
     )
+    cleanup_enabled: bool = _bool_from_env("ESP_UPGRADE_CLEANUP_ENABLED", "1")
+    cleanup_retention_days: int = int(os.getenv("ESP_UPGRADE_CLEANUP_RETENTION_DAYS", "14"))
+    cleanup_hour: int = int(os.getenv("ESP_UPGRADE_CLEANUP_HOUR", "3"))
+    cleanup_minute: int = int(os.getenv("ESP_UPGRADE_CLEANUP_MINUTE", "0"))
     ota_public_base_url: str = os.getenv("ESP_OTA_PUBLIC_BASE_URL", "http://14.103.183.47:8010").strip().rstrip("/")
     ota_latest_version: str = os.getenv("ESP_OTA_LATEST_VERSION", "").strip()
     ota_firmware_dir: Path = _path_from_env("ESP_OTA_FIRMWARE_DIR", "/codebase/upgrade_linux/firmwares")

@@ -67,13 +67,16 @@
       </section>
 
       <section class="panel firmware-panel">
-        <div class="section-heading">
-          <div>
-            <h2>固件下载</h2>
-            <p>编译成功后生成的固件</p>
-          </div>
-        </div>
-        <div class="firmware-list" id="firmwareList"></div>
+        <details class="record-collapse" id="firmwareDetails">
+          <summary>
+            <span>
+              <strong>固件下载</strong>
+              <small>编译成功后生成的固件 · <span id="firmwareCount">0</span></small>
+            </span>
+            <span class="summary-icon">⌄</span>
+          </summary>
+          <div class="firmware-list" id="firmwareList"></div>
+        </details>
       </section>
 
       <section class="panel build-record-panel">

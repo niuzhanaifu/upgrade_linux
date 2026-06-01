@@ -8,6 +8,7 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel
 
 from . import __version__
+from .cleanup_scheduler import start_cleanup_scheduler
 from .config import settings
 from .job_manager import JobManager
 from .ota import build_ota_response, firmware_file_response
@@ -22,6 +23,11 @@ jobs = JobManager(settings)
 
 class BuildRequest(BaseModel):
     full: bool = False
+
+
+@app.on_event("startup")
+def startup() -> None:
+    start_cleanup_scheduler(jobs, settings)
 
 
 @app.get("/health")
@@ -45,6 +51,10 @@ def config() -> dict:
         "build_script_configured": bool(settings.build_script),
         "build_incremental_arg": settings.build_incremental_arg,
         "build_full_arg": settings.build_full_arg,
+        "cleanup_enabled": settings.cleanup_enabled,
+        "cleanup_retention_days": settings.cleanup_retention_days,
+        "cleanup_hour": settings.cleanup_hour,
+        "cleanup_minute": settings.cleanup_minute,
         "firmware_path": settings.firmware_path,
         "upgrade_command_configured": bool(settings.upgrade_command),
         "ota_public_base_url": settings.ota_public_base_url,
