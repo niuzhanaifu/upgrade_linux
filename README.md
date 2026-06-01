@@ -6,7 +6,7 @@
 
 - 前端页面：编译、升级、日志查看、配置状态展示。
 - 后端接口：启动编译任务、启动升级任务、查询任务状态和日志。
-- 编译流程：自动 `git clone` 或 `git pull`，再执行配置的编译命令。
+- 编译流程：调用配置的编译脚本，执行增量或全量编译。
 - 升级流程：执行配置的升级命令，可使用最新固件路径。
 - 默认端口：`8010`，不会和 `DA_FU_WENG_APP` 股票服务默认的 `8000` 冲突。
 
@@ -110,23 +110,24 @@ CONFIG_ENABLE_RELEASE_OTA=y
 
 可以参考 [deploy/systemd/esp32-upgrade.service](deploy/systemd/esp32-upgrade.service)。
 
-首次部署或后续重新部署，建议在服务器执行：
+首次部署：
 
 ```bash
-export UPGRADE_APP_REPO_URL="https://github.com/your-org/upgrade_linux.git"
-export UPGRADE_APP_BRANCH="main"
+cd /codebase
+git clone git@github.com:niuzhanaifu/upgrade_linux.git
+cd /codebase/upgrade_linux
 chmod +x deploy/redeploy.sh
 ./deploy/redeploy.sh
 ```
 
-后续如果 `/codebase/upgrade_linux` 已经是 git 仓库，直接运行：
+后续更新部署：
 
 ```bash
 cd /codebase/upgrade_linux
 ./deploy/redeploy.sh
 ```
 
-脚本会自动拉取本项目最新代码、安装后端依赖、更新 systemd 服务并重启。
+脚本会自动 `git fetch`、`git pull --ff-only`、安装后端依赖、更新 systemd 服务并重启。默认仓库地址是 `git@github.com:niuzhanaifu/upgrade_linux.git`。
 
 如果你只是从本地目录复制部署，也可以在项目根目录执行：
 

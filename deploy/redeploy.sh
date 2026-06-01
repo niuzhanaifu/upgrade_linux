@@ -3,7 +3,7 @@ set -euo pipefail
 
 APP_DIR="${APP_DIR:-/codebase/upgrade_linux}"
 SERVICE_NAME="${SERVICE_NAME:-esp32-upgrade}"
-APP_REPO_URL="${UPGRADE_APP_REPO_URL:-}"
+APP_REPO_URL="${UPGRADE_APP_REPO_URL:-git@github.com:niuzhanaifu/upgrade_linux.git}"
 APP_BRANCH="${UPGRADE_APP_BRANCH:-main}"
 ENV_FILE="${ENV_FILE:-/etc/esp32-upgrade.env}"
 
@@ -41,14 +41,7 @@ pull_or_clone_app() {
     exit 1
   fi
 
-  if [ -z "${APP_REPO_URL}" ]; then
-    log "ERROR: UPGRADE_APP_REPO_URL is empty."
-    log "First deploy example:"
-    log "  UPGRADE_APP_REPO_URL=https://github.com/your-org/upgrade_linux.git ./deploy/redeploy.sh"
-    exit 1
-  fi
-
-  log "Cloning app code into ${APP_DIR}"
+  log "Cloning app code from ${APP_REPO_URL} into ${APP_DIR}"
   if [ -n "${APP_BRANCH}" ]; then
     git clone --branch "${APP_BRANCH}" "${APP_REPO_URL}" "${APP_DIR}"
   else
