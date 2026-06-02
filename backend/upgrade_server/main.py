@@ -254,4 +254,7 @@ app.mount("/assets", StaticFiles(directory=str(FRONTEND_DIR)), name="assets")
 
 @app.get("/")
 def index() -> FileResponse:
-    return FileResponse(FRONTEND_DIR / "index.html")
+    return FileResponse(
+        FRONTEND_DIR / "index.html",
+        headers={"Cache-Control": "no-cache, no-store, must-revalidate"},
+    )

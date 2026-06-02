@@ -3,6 +3,7 @@ const state = {
   logOffset: 0,
   pollTimer: null,
   selectedFirmwareId: null,
+  selectedOtaVersion: "all",
   otaPackages: [],
 };
 
@@ -30,6 +31,7 @@ const otaPublishSubmit = document.querySelector("#otaPublishSubmit");
 const otaUnpublishSubmit = document.querySelector("#otaUnpublishSubmit");
 const otaPublishStatus = document.querySelector("#otaPublishStatus");
 const otaPublishHistory = document.querySelector("#otaPublishHistory");
+const otaVersionFilter = document.querySelector("#otaVersionFilter");
 const otaStats = document.querySelector("#otaStats");
 const otaRecordList = document.querySelector("#otaRecordList");
 
@@ -210,6 +212,24 @@ function renderOtaRecord(record) {
   `;
 }
 
+function renderOtaVersionFilter(versionGroups) {
+  if (!otaVersionFilter) {
+    return;
+  }
+
+  const versions = versionGroups.map((group) => group.version || "未知版本");
+  if (state.selectedOtaVersion !== "all" && !versions.includes(state.selectedOtaVersion)) {
+    state.selectedOtaVersion = "all";
+  }
+
+  otaVersionFilter.innerHTML = [
+    `<option value="all">全部版本</option>`,
+    ...versions.map((version) => `<option value="${escapeHtml(version)}">目标版本 ${escapeHtml(version)}</option>`),
+  ].join("");
+  otaVersionFilter.value = state.selectedOtaVersion;
+  otaVersionFilter.disabled = versions.length <= 1;
+}
+
 function modeText(mode) {
   return mode === "full" ? "全量" : "增量";
 }
@@ -344,13 +364,20 @@ async function loadOtaUpgradeRecords() {
   const stats = data.stats || {};
   const records = data.records || [];
   const versionGroups = Array.isArray(data.version_groups) ? data.version_groups : groupOtaRecordsByVersion(records);
+  renderOtaVersionFilter(versionGroups);
+  const visibleGroups =
+    state.selectedOtaVersion === "all"
+      ? versionGroups
+      : versionGroups.filter((group) => (group.version || "未知版本") === state.selectedOtaVersion);
+  const visibleStats =
+    state.selectedOtaVersion === "all" ? stats : visibleGroups[0]?.stats || otaRecordStats(visibleGroups.flatMap((group) => group.records || []));
 
   otaStats.innerHTML = [
-    ["总升级", stats.total || 0],
-    ["成功", stats.success || 0],
-    ["失败", stats.failed || 0],
-    ["已上报", stats.reported || 0],
-    ["IP数", stats.unique_ips || 0],
+    ["总升级", visibleStats.total || 0],
+    ["成功", visibleStats.success || 0],
+    ["失败", visibleStats.failed || 0],
+    ["已上报", visibleStats.reported || 0],
+    ["IP数", visibleStats.unique_ips || 0],
   ]
     .map(
       ([label, value]) => `
@@ -367,7 +394,12 @@ async function loadOtaUpgradeRecords() {
     return;
   }
 
-  otaRecordList.innerHTML = versionGroups
+  if (!visibleGroups.length) {
+    otaRecordList.innerHTML = `<p class="empty">当前目标版本暂无 OTA 升级请求记录</p>`;
+    return;
+  }
+
+  otaRecordList.innerHTML = visibleGroups
     .map((group) => {
       const groupStats = group.stats || {};
       const groupRecords = group.records || [];
@@ -584,6 +616,10 @@ fullBuildButton.addEventListener("click", () => startJob("build_full"));
 upgradeButton.addEventListener("click", () => startJob("upgrade"));
 otaPublishSubmit.addEventListener("click", publishOtaPackage);
 otaUnpublishSubmit.addEventListener("click", unpublishOtaPackage);
+otaVersionFilter.addEventListener("change", async () => {
+  state.selectedOtaVersion = otaVersionFilter.value;
+  await loadOtaUpgradeRecords();
+});
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => switchProductView(button.dataset.target));
 });

@@ -368,6 +368,32 @@ h2 {
   font-size: 13px;
 }
 
+.ota-version-filter {
+  display: grid;
+  gap: 5px;
+  min-width: 170px;
+  color: #536170;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ota-version-filter select {
+  width: 100%;
+  min-height: 34px;
+  padding: 0 10px;
+  border: 1px solid #cfd9e3;
+  border-radius: 8px;
+  background: #fff;
+  color: #263443;
+  font: inherit;
+  font-weight: 700;
+}
+
+.ota-version-filter select:disabled {
+  background: #eef3f7;
+  color: #7b8792;
+}
+
 .ota-stats {
   display: grid;
   grid-template-columns: repeat(5, minmax(62px, 1fr));
@@ -692,6 +718,10 @@ h2 {
 
   .ota-records-header {
     display: grid;
+  }
+
+  .ota-version-filter {
+    min-width: 0;
   }
 
   .ota-stats {
