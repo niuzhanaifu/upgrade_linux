@@ -53,6 +53,11 @@ class Settings:
         "ESP_UPGRADE_OTA_PUBLISH_HISTORY_PATH",
         str(_path_from_env("ESP_UPGRADE_BASE_DIR", "./var") / "ota_publish_history.json"),
     )
+    ota_upgrade_records_path: Path = _path_from_env(
+        "ESP_UPGRADE_OTA_UPGRADE_RECORDS_PATH",
+        str(_path_from_env("ESP_UPGRADE_BASE_DIR", "./var") / "ota_upgrade_records.json"),
+    )
+    ota_upgrade_records_limit: int = int(os.getenv("ESP_UPGRADE_OTA_UPGRADE_RECORDS_LIMIT", "1000"))
     ota_default_board: str = os.getenv("ESP_OTA_DEFAULT_BOARD", "fogseek-nano").strip()
     ota_sign_private_key_path: Path = _path_from_env(
         "ESP_OTA_SIGN_PRIVATE_KEY_PATH",

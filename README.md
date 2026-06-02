@@ -64,6 +64,8 @@ export ESP_UPGRADE_OTA_PACKAGE_DIR="/root/codebase/esp32/projects/release/ota"
 | `ESP_UPGRADE_OTA_PACKAGE_DIR` | `/root/codebase/esp32/projects/release/ota` | 前端“获取升级包信息”扫描的 OTA 包目录 |
 | `ESP_UPGRADE_OTA_PUBLISH_DIR` | `/root/codebase/esp32/projects/release/ota_publish` | 前端 OTA 发布复制到的目录 |
 | `ESP_UPGRADE_OTA_PUBLISH_HISTORY_PATH` | `$ESP_UPGRADE_BASE_DIR/ota_publish_history.json` | OTA 发布历史记录文件 |
+| `ESP_UPGRADE_OTA_UPGRADE_RECORDS_PATH` | `$ESP_UPGRADE_BASE_DIR/ota_upgrade_records.json` | 设备请求 OTA 升级检查的记录文件 |
+| `ESP_UPGRADE_OTA_UPGRADE_RECORDS_LIMIT` | `1000` | OTA 升级记录最多保留条数 |
 | `ESP_OTA_DEFAULT_BOARD` | `fogseek-nano` | 默认发布板型 |
 | `ESP_OTA_SIGN_PRIVATE_KEY_PATH` | `/root/codebase/esp32/projects/release/keys/ota_sign_private.pem` | OTA manifest ECDSA P-256 私钥 |
 | `ESP_OTA_SIGN_PUBLIC_KEY_PATH` | `/root/codebase/esp32/projects/release/keys/ota_sign_public.pem` | OTA manifest 公钥，给固件端内置 |
@@ -205,6 +207,14 @@ curl http://14.103.183.47:8010/api/v1/ota-publish/history
 ```
 
 发布成功后会创建 `ESP_UPGRADE_OTA_PUBLISH_DIR`，删除目录里的旧发布文件，然后把用户选择的 OTA 包复制进去，并写入发布历史。
+
+OTA 升级请求记录：
+
+```bash
+curl http://14.103.183.47:8010/api/v1/ota-upgrade-records
+```
+
+每次设备请求 `POST /v1/firmware/ota/` 都会记录来源 IP、请求时间、Device-Id、Client-Id、板型、当前版本、目标版本、包名和结果。前端“任务输出”下面的“OTA升级记录”区域会展示这些记录和统计信息。这里的“已下发”表示服务端已向设备返回可升级 manifest；设备是否最终写入成功，需要固件端后续增加升级完成回调才能精确记录。
 
 发布时服务端会：
 

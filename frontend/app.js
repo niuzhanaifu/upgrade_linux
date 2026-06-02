@@ -29,6 +29,8 @@ const otaPublishPassword = document.querySelector("#otaPublishPassword");
 const otaPublishSubmit = document.querySelector("#otaPublishSubmit");
 const otaPublishStatus = document.querySelector("#otaPublishStatus");
 const otaPublishHistory = document.querySelector("#otaPublishHistory");
+const otaStats = document.querySelector("#otaStats");
+const otaRecordList = document.querySelector("#otaRecordList");
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -121,6 +123,15 @@ function recordStatusText(status) {
     queued: "排队中",
     running: "运行中",
     succeeded: "成功",
+    failed: "失败",
+  };
+  return statusMap[status] || status || "-";
+}
+
+function otaRecordStatusText(status) {
+  const statusMap = {
+    offered: "已下发",
+    no_update: "无升级",
     failed: "失败",
   };
   return statusMap[status] || status || "-";
@@ -255,6 +266,56 @@ async function loadBuildRecords() {
   });
 }
 
+async function loadOtaUpgradeRecords() {
+  const data = await api("/api/v1/ota-upgrade-records");
+  const stats = data.stats || {};
+  const records = data.records || [];
+
+  otaStats.innerHTML = [
+    ["总请求", stats.total || 0],
+    ["已下发", stats.offered || 0],
+    ["无升级", stats.no_update || 0],
+    ["失败", stats.failed || 0],
+    ["IP数", stats.unique_ips || 0],
+  ]
+    .map(
+      ([label, value]) => `
+        <div class="ota-stat-item">
+          <strong>${value}</strong>
+          <span>${label}</span>
+        </div>
+      `,
+    )
+    .join("");
+
+  if (!records.length) {
+    otaRecordList.innerHTML = `<p class="empty">暂无 OTA 升级请求记录</p>`;
+    return;
+  }
+
+  otaRecordList.innerHTML = records
+    .slice(0, 20)
+    .map((record) => {
+      const status = record.status || (record.success ? "offered" : "failed");
+      return `
+        <div class="ota-record-item ${escapeHtml(status)}">
+          <div class="ota-record-main">
+            <strong>${escapeHtml(record.ip || "-")}</strong>
+            <span class="ota-status ${escapeHtml(status)}">${otaRecordStatusText(status)}</span>
+          </div>
+          <div class="ota-record-grid">
+            <span>时间</span><strong>${formatTime(record.requested_at)}</strong>
+            <span>板型</span><strong>${escapeHtml(record.board || "-")}</strong>
+            <span>当前版本</span><strong>${escapeHtml(record.current_version || "-")}</strong>
+            <span>目标版本</span><strong>${escapeHtml(record.target_version || "-")}</strong>
+          </div>
+          <div class="record-path">${escapeHtml(record.package_name || record.reason || "-")}</div>
+        </div>
+      `;
+    })
+    .join("");
+}
+
 async function showOtaPublishPanel() {
   otaPublishPanel.hidden = false;
   otaPublishStatus.textContent = "正在读取升级包...";
@@ -362,6 +423,7 @@ async function startJob(kind) {
     await loadJobs();
     await loadBuildRecords();
     await loadFirmwares();
+    await loadOtaUpgradeRecords();
   } catch (error) {
     logView.textContent = `启动失败：${error.message}`;
     setButtonsBusy(false);
@@ -397,6 +459,7 @@ async function pollLogs() {
       await loadJobs();
       await loadBuildRecords();
       await loadFirmwares();
+      await loadOtaUpgradeRecords();
     }
   } catch (error) {
     jobMeta.textContent = "日志读取失败";
@@ -418,6 +481,7 @@ refreshButton.addEventListener("click", async () => {
   await loadJobs();
   await loadBuildRecords();
   await loadFirmwares();
+  await loadOtaUpgradeRecords();
   if (state.activeJobId) {
     await pollLogs();
   }
@@ -432,4 +496,7 @@ loadBuildRecords().catch((error) => {
 });
 loadFirmwares().catch((error) => {
   firmwareList.innerHTML = `<p class="empty">读取固件失败：${error.message}</p>`;
+});
+loadOtaUpgradeRecords().catch((error) => {
+  otaRecordList.innerHTML = `<p class="empty">读取 OTA 升级记录失败：${error.message}</p>`;
 });

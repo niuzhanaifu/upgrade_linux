@@ -342,6 +342,124 @@ h2 {
   white-space: pre-wrap;
 }
 
+.ota-records-panel {
+  margin-top: 16px;
+  padding-top: 16px;
+  border-top: 1px solid #e2e8ef;
+}
+
+.ota-records-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 16px;
+  margin-bottom: 12px;
+}
+
+.ota-records-header p {
+  margin-top: 4px;
+  color: #637282;
+  font-size: 13px;
+}
+
+.ota-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(62px, 1fr));
+  gap: 8px;
+  min-width: 360px;
+}
+
+.ota-stat-item {
+  display: grid;
+  gap: 2px;
+  padding: 8px;
+  border-radius: 8px;
+  background: #f4f7fa;
+  text-align: center;
+}
+
+.ota-stat-item strong {
+  color: #263443;
+  font-size: 16px;
+}
+
+.ota-stat-item span {
+  color: #667686;
+  font-size: 12px;
+}
+
+.ota-record-list {
+  display: grid;
+  gap: 8px;
+  max-height: 330px;
+  overflow: auto;
+}
+
+.ota-record-item {
+  display: grid;
+  gap: 8px;
+  padding: 12px;
+  border: 1px solid #e2e8ef;
+  border-radius: 8px;
+  background: #fbfcfd;
+}
+
+.ota-record-item.offered {
+  border-color: #b9dcc7;
+  background: #f7fcf8;
+}
+
+.ota-record-item.failed {
+  border-color: #f0b9b9;
+  background: #fff8f8;
+}
+
+.ota-record-main {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.ota-record-main strong {
+  color: #263443;
+  font-size: 14px;
+}
+
+.ota-status {
+  flex: 0 0 auto;
+  padding: 4px 8px;
+  border-radius: 999px;
+  background: #eef3f7;
+  color: #536170;
+  font-size: 12px;
+  font-weight: 800;
+}
+
+.ota-status.offered {
+  background: #e8f6ed;
+  color: #167247;
+}
+
+.ota-status.failed {
+  background: #fff0f0;
+  color: #b83232;
+}
+
+.ota-record-grid {
+  display: grid;
+  grid-template-columns: auto minmax(0, 1fr) auto minmax(0, 1fr);
+  gap: 6px 10px;
+  color: #667686;
+  font-size: 12px;
+}
+
+.ota-record-grid strong {
+  overflow-wrap: anywhere;
+  color: #263443;
+  font-weight: 700;
+}
+
 .job-list {
   display: grid;
   gap: 10px;
@@ -530,5 +648,18 @@ h2 {
 
   .log-view {
     min-height: 360px;
+  }
+
+  .ota-records-header {
+    display: grid;
+  }
+
+  .ota-stats {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    min-width: 0;
+  }
+
+  .ota-record-grid {
+    grid-template-columns: auto minmax(0, 1fr);
   }
 }

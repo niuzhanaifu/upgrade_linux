@@ -13,6 +13,7 @@ from .config import settings
 from .job_manager import JobManager
 from .ota import build_ota_response, firmware_file_response
 from .ota_publish import OtaPublishStore, PublishError, publish_ota_package, scan_ota_packages
+from .ota_upgrade_records import OtaUpgradeRecordStore
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -21,6 +22,7 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 app = FastAPI(title="ESP32 Upgrade Server", version=__version__)
 jobs = JobManager(settings)
 ota_publish_store = OtaPublishStore(settings)
+ota_upgrade_record_store = OtaUpgradeRecordStore(settings)
 
 
 class BuildRequest(BaseModel):
@@ -68,6 +70,7 @@ def config() -> dict:
         "ota_package_dir": str(settings.ota_package_dir),
         "ota_package_dir_configured": bool(settings.ota_package_dir),
         "ota_publish_dir": str(settings.ota_publish_dir),
+        "ota_upgrade_records_path": str(settings.ota_upgrade_records_path),
         "ota_default_board": settings.ota_default_board,
         "ota_sign_public_key_path": str(settings.ota_sign_public_key_path),
         "ota_sign_private_key_configured": settings.ota_sign_private_key_path.is_file(),
@@ -179,9 +182,17 @@ def publish_ota(request: OtaPublishRequest) -> dict:
     return {"record": record}
 
 
+@app.get("/api/v1/ota-upgrade-records")
+def list_ota_upgrade_records() -> dict:
+    return {
+        "records": ota_upgrade_record_store.list_records(),
+        "stats": ota_upgrade_record_store.stats(),
+    }
+
+
 @app.post("/v1/firmware/ota/")
 async def check_firmware_ota(request: Request) -> dict:
-    return await build_ota_response(request, settings)
+    return await build_ota_response(request, settings, ota_upgrade_record_store)
 
 
 @app.get("/firmwares/{board}/{firmware_name}")

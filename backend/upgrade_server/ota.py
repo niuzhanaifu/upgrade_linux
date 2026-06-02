@@ -11,6 +11,7 @@ from fastapi.responses import FileResponse
 
 from .config import Settings
 from .ota_publish import SIGN_ALG, normalize_board, package_info, verify_manifest_signature
+from .ota_upgrade_records import OtaUpgradeRecordStore
 
 
 logger = logging.getLogger("upgrade_server.ota")
@@ -28,6 +29,16 @@ OTA_HEADER_NAMES = (
 
 def selected_headers(request: Request) -> dict[str, str]:
     return {name: request.headers[name] for name in OTA_HEADER_NAMES if name in request.headers}
+
+
+def client_ip(request: Request) -> str:
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    if forwarded_for:
+        return forwarded_for.split(",", 1)[0].strip()
+    real_ip = request.headers.get("x-real-ip", "")
+    if real_ip:
+        return real_ip.strip()
+    return request.client.host if request.client else ""
 
 
 async def read_request_body(request: Request) -> Any:
@@ -126,9 +137,14 @@ def build_firmware_url(request: Request, settings: Settings) -> str:
     return f"{base_url}/firmwares/{settings.ota_firmware_file}"
 
 
-async def build_ota_response(request: Request, settings: Settings) -> dict:
+async def build_ota_response(
+    request: Request,
+    settings: Settings,
+    record_store: OtaUpgradeRecordStore | None = None,
+) -> dict:
     body = await read_request_body(request)
     headers = selected_headers(request)
+    ip = client_ip(request)
     current_version = extract_current_version(body)
     board = extract_board(body, request, settings)
     manifest = load_published_manifest(settings, board)
@@ -156,8 +172,53 @@ async def build_ota_response(request: Request, settings: Settings) -> dict:
     logger.info("ota check: %s", log_payload)
 
     if not manifest or not has_update or not signature_ok:
+        reason = "no_manifest"
+        if manifest and not file_exists:
+            reason = "firmware_missing"
+        elif manifest and not signature_ok:
+            reason = "signature_invalid"
+        elif manifest and not has_update:
+            reason = "no_new_version"
+        _record_ota_check(
+            record_store,
+            {
+                "ip": ip,
+                "device_id": headers.get("device-id", ""),
+                "client_id": headers.get("client-id", ""),
+                "serial_number": headers.get("serial-number", ""),
+                "user_agent": headers.get("user-agent", ""),
+                "board": board,
+                "current_version": current_version,
+                "target_version": latest_version,
+                "package_name": package_name,
+                "status": "no_update",
+                "success": False,
+                "available": False,
+                "reason": reason,
+                "signature_ok": signature_ok,
+            },
+        )
         return {"firmware": {"available": False}}
 
+    _record_ota_check(
+        record_store,
+        {
+            "ip": ip,
+            "device_id": headers.get("device-id", ""),
+            "client_id": headers.get("client-id", ""),
+            "serial_number": headers.get("serial-number", ""),
+            "user_agent": headers.get("user-agent", ""),
+            "board": board,
+            "current_version": current_version,
+            "target_version": latest_version,
+            "package_name": package_name,
+            "status": "offered",
+            "success": True,
+            "available": True,
+            "reason": "available",
+            "signature_ok": signature_ok,
+        },
+    )
     return {
         "firmware": {
             "available": True,
@@ -171,6 +232,15 @@ async def build_ota_response(request: Request, settings: Settings) -> dict:
             "force": 1 if force else 0,
         }
     }
+
+
+def _record_ota_check(record_store: OtaUpgradeRecordStore | None, record: dict[str, Any]) -> None:
+    if record_store is None:
+        return
+    try:
+        record_store.add_record(record)
+    except Exception as exc:
+        logger.warning("failed to save OTA upgrade record: %s", exc)
 
 
 def firmware_file_response(settings: Settings, firmware_name: str, board: str | None = None) -> FileResponse:
