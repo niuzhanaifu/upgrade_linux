@@ -203,10 +203,15 @@ curl http://14.103.183.47:8010/api/v1/ota-packages
 curl -X POST http://14.103.183.47:8010/api/v1/ota-publish \
   -H 'Content-Type: application/json' \
   -d '{"package_name":"20260601_153012_2.1.0_ota.bin","password":"300075"}'
+curl -X POST http://14.103.183.47:8010/api/v1/ota-publish/unpublish \
+  -H 'Content-Type: application/json' \
+  -d '{"password":"300075","board":"fogseek-nano"}'
 curl http://14.103.183.47:8010/api/v1/ota-publish/history
 ```
 
 发布成功后会创建 `ESP_UPGRADE_OTA_PUBLISH_DIR`，删除目录里的旧发布文件，然后把用户选择的 OTA 包复制进去，并写入发布历史。
+
+下架 OTA 包会把 `ESP_UPGRADE_OTA_PUBLISH_DIR/<board>/manifest.json` 改为下架状态，使固件端再次请求时拿不到升级包并返回 `available=false`，同时会尽量删除该发布目录下的旧 OTA 文件。下载接口也会校验有效 manifest，所以即使旧 bin 因权限原因残留，也不会继续作为已发布固件下载。它不会删除 `ESP_UPGRADE_OTA_PACKAGE_DIR` 里的待发布源包，也不会改动 `ESP_OTA_SIGN_PRIVATE_KEY_PATH` / `ESP_OTA_SIGN_PUBLIC_KEY_PATH` 对应的私钥和公钥。
 
 OTA 升级请求记录：
 

@@ -27,6 +27,7 @@ const otaPublishPanel = document.querySelector("#otaPublishPanel");
 const otaPackageSelect = document.querySelector("#otaPackageSelect");
 const otaPublishPassword = document.querySelector("#otaPublishPassword");
 const otaPublishSubmit = document.querySelector("#otaPublishSubmit");
+const otaUnpublishSubmit = document.querySelector("#otaUnpublishSubmit");
 const otaPublishStatus = document.querySelector("#otaPublishStatus");
 const otaPublishHistory = document.querySelector("#otaPublishHistory");
 const otaStats = document.querySelector("#otaStats");
@@ -372,8 +373,8 @@ async function loadOtaPublishHistory() {
       .map(
         (record) => `
           <div class="publish-history-item">
-            <strong>${escapeHtml(record.package_name)}</strong>
-            <span>${formatTime(record.published_at)} · ${escapeHtml(record.version || "-")}</span>
+            <strong>${escapeHtml(record.action === "unpublish" ? "已下架 OTA 发布包" : record.package_name)}</strong>
+            <span>${formatTime(record.published_at)} · ${escapeHtml(record.board || "-")} · ${escapeHtml(record.version || record.action || "-")}</span>
           </div>
         `,
       )
@@ -415,6 +416,40 @@ async function publishOtaPackage() {
   } catch (error) {
     otaPublishStatus.textContent = `发布失败：${error.message}`;
   } finally {
+    otaPublishSubmit.disabled = !state.otaPackages.length;
+  }
+}
+
+async function unpublishOtaPackage() {
+  const password = otaPublishPassword.value;
+  if (!password) {
+    otaPublishStatus.textContent = "请输入发布密码";
+    return;
+  }
+
+  otaUnpublishSubmit.disabled = true;
+  otaPublishSubmit.disabled = true;
+  otaPublishStatus.textContent = "正在下架...";
+  try {
+    const data = await api("/api/v1/ota-publish/unpublish", {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    });
+    otaPublishPassword.value = "";
+    otaPublishStatus.textContent = `已下架，删除 ${data.record.removed_count || 0} 个发布文件`;
+    logView.textContent = [
+      "OTA发布包已下架",
+      `板型：${data.record.board}`,
+      `发布目录：${data.record.publish_path}`,
+      `删除文件数：${data.record.removed_count || 0}`,
+      `残留文件数：${(data.record.failed_remove_files || []).length}`,
+      "私钥和公钥未改动",
+    ].join("\n");
+    await loadOtaPublishHistory();
+  } catch (error) {
+    otaPublishStatus.textContent = `下架失败：${error.message}`;
+  } finally {
+    otaUnpublishSubmit.disabled = false;
     otaPublishSubmit.disabled = !state.otaPackages.length;
   }
 }
@@ -484,6 +519,7 @@ incrementalBuildButton.addEventListener("click", () => startJob("build_increment
 fullBuildButton.addEventListener("click", () => startJob("build_full"));
 upgradeButton.addEventListener("click", () => startJob("upgrade"));
 otaPublishSubmit.addEventListener("click", publishOtaPackage);
+otaUnpublishSubmit.addEventListener("click", unpublishOtaPackage);
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => switchProductView(button.dataset.target));
 });

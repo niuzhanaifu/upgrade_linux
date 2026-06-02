@@ -12,7 +12,7 @@ from .cleanup_scheduler import start_cleanup_scheduler
 from .config import settings
 from .job_manager import JobManager
 from .ota import build_ota_response, firmware_file_response
-from .ota_publish import OtaPublishStore, PublishError, publish_ota_package, scan_ota_packages
+from .ota_publish import OtaPublishStore, PublishError, publish_ota_package, scan_ota_packages, unpublish_ota_package
 from .ota_upgrade_records import OtaUpgradeRecordStore
 
 
@@ -31,6 +31,11 @@ class BuildRequest(BaseModel):
 
 class OtaPublishRequest(BaseModel):
     package_name: str
+    password: str
+    board: str | None = None
+
+
+class OtaUnpublishRequest(BaseModel):
     password: str
     board: str | None = None
 
@@ -186,6 +191,15 @@ def list_ota_publish_history() -> dict:
 def publish_ota(request: OtaPublishRequest) -> dict:
     try:
         record = publish_ota_package(settings, ota_publish_store, request.package_name, request.password, request.board)
+    except PublishError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {"record": record}
+
+
+@app.post("/api/v1/ota-publish/unpublish")
+def unpublish_ota(request: OtaUnpublishRequest) -> dict:
+    try:
+        record = unpublish_ota_package(settings, ota_publish_store, request.password, request.board)
     except PublishError as exc:
         raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
     return {"record": record}

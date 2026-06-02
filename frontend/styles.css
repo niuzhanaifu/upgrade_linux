@@ -166,6 +166,7 @@ h2 {
 
 .primary-button,
 .secondary-button,
+.danger-button,
 .ghost-button {
   display: inline-flex;
   align-items: center;
@@ -183,6 +184,11 @@ h2 {
 
 .secondary-button {
   background: #25344a;
+  color: #fff;
+}
+
+.danger-button {
+  background: #b83232;
   color: #fff;
 }
 

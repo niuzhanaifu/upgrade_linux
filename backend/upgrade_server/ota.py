@@ -252,6 +252,9 @@ def firmware_file_response(settings: Settings, firmware_name: str, board: str | 
         board_name = normalize_board(board)
         if Path(firmware_name).name != firmware_name:
             raise HTTPException(status_code=400, detail="invalid firmware filename")
+        manifest = load_published_manifest(settings, board_name)
+        if not manifest or str(manifest.get("package_name", "")) != firmware_name:
+            raise HTTPException(status_code=404, detail="firmware not published")
         path = published_firmware_path(settings, board_name, firmware_name)
         root = (settings.ota_publish_dir / board_name).resolve()
         if path.parent != root:

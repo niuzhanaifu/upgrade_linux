@@ -100,10 +100,11 @@ def publish_ota_package(
     publish_dir.mkdir(parents=True, exist_ok=True)
     for child in publish_dir.iterdir():
         if child.is_file() or child.is_symlink():
-            try:
-                child.unlink()
-            except OSError as exc:
-                raise PublishError(f"failed to remove old publish package: {child}") from exc
+                try:
+                    child.chmod(0o666)
+                    child.unlink()
+                except OSError as exc:
+                    raise PublishError(f"failed to remove old publish package: {child}") from exc
 
     target_path = publish_dir / package_path.name
     shutil.copy2(package_path, target_path)
@@ -130,6 +131,72 @@ def publish_ota_package(
         "publish_path": str(target_path),
         "manifest_path": str(manifest_path),
         "url": manifest["url"],
+    }
+    store.save_record(record)
+    return record
+
+
+def unpublish_ota_package(
+    settings: Settings,
+    store: OtaPublishStore,
+    password: str,
+    board: str | None = None,
+) -> dict[str, object]:
+    if password != PUBLISH_PASSWORD:
+        raise PublishError("发布密码错误", 401)
+
+    board_name = normalize_board(board or settings.ota_default_board)
+    publish_dir = settings.ota_publish_dir / board_name
+    removed_files: list[str] = []
+    failed_remove_files: list[str] = []
+
+    if publish_dir.exists():
+        if not publish_dir.is_dir():
+            raise PublishError(f"OTA publish path is not a directory: {publish_dir}")
+        publish_dir.mkdir(parents=True, exist_ok=True)
+        disabled_manifest = {
+            "available": False,
+            "board": board_name,
+            "unpublished_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with (publish_dir / "manifest.json").open("w", encoding="utf-8") as file:
+            json.dump(disabled_manifest, file, ensure_ascii=False, indent=2)
+        for child in publish_dir.iterdir():
+            if child.name == "manifest.json":
+                continue
+            if child.is_file() or child.is_symlink():
+                try:
+                    child.chmod(0o666)
+                    child.unlink()
+                except OSError as exc:
+                    failed_remove_files.append(child.name)
+                    continue
+                removed_files.append(child.name)
+    else:
+        publish_dir.mkdir(parents=True, exist_ok=True)
+        disabled_manifest = {
+            "available": False,
+            "board": board_name,
+            "unpublished_at": datetime.now(timezone.utc).isoformat(),
+        }
+        with (publish_dir / "manifest.json").open("w", encoding="utf-8") as file:
+            json.dump(disabled_manifest, file, ensure_ascii=False, indent=2)
+
+    record = {
+        "id": str(uuid.uuid4()),
+        "action": "unpublish",
+        "published_at": datetime.now(timezone.utc).isoformat(),
+        "board": board_name,
+        "package_name": "",
+        "version": "",
+        "size": 0,
+        "source_path": "",
+        "publish_path": str(publish_dir),
+        "manifest_path": str(publish_dir / "manifest.json"),
+        "url": "",
+        "removed_files": removed_files,
+        "failed_remove_files": failed_remove_files,
+        "removed_count": len(removed_files),
     }
     store.save_record(record)
     return record
