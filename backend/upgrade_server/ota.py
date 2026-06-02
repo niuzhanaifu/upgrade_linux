@@ -153,7 +153,8 @@ async def build_ota_response(
     path = published_firmware_path(settings, board, package_name) if package_name else None
     file_exists = bool(path and path.is_file())
     force = bool(settings.ota_force or int(manifest.get("force", 0))) if manifest else settings.ota_force
-    has_update = bool(manifest) and file_exists and (force or not current_version or is_newer_version(current_version, latest_version))
+    version_requires_update = bool(manifest) and (force or not current_version or is_newer_version(current_version, latest_version))
+    has_update = version_requires_update and file_exists
     signature_ok = bool(manifest and verify_manifest_signature(settings, manifest))
 
     log_payload: dict[str, Any] = {
@@ -171,14 +172,13 @@ async def build_ota_response(
         log_payload["body"] = body
     logger.info("ota check: %s", log_payload)
 
-    if not manifest or not has_update or not signature_ok:
-        reason = "no_manifest"
-        if manifest and not file_exists:
+    if not manifest or not version_requires_update:
+        return {"firmware": {"available": False}}
+
+    if not file_exists or not signature_ok:
+        reason = "signature_invalid"
+        if not file_exists:
             reason = "firmware_missing"
-        elif manifest and not signature_ok:
-            reason = "signature_invalid"
-        elif manifest and not has_update:
-            reason = "no_new_version"
         _record_ota_check(
             record_store,
             {
@@ -191,16 +191,17 @@ async def build_ota_response(
                 "current_version": current_version,
                 "target_version": latest_version,
                 "package_name": package_name,
-                "status": "no_update",
+                "status": "failed",
                 "success": False,
                 "available": False,
                 "reason": reason,
                 "signature_ok": signature_ok,
+                "result_source": "server",
             },
         )
         return {"firmware": {"available": False}}
 
-    _record_ota_check(
+    upgrade_record = _record_ota_check(
         record_store,
         {
             "ip": ip,
@@ -212,16 +213,18 @@ async def build_ota_response(
             "current_version": current_version,
             "target_version": latest_version,
             "package_name": package_name,
-            "status": "offered",
+            "status": "success",
             "success": True,
             "available": True,
-            "reason": "available",
+            "reason": "default_success_until_device_report",
             "signature_ok": signature_ok,
+            "result_source": "default",
         },
     )
     return {
         "firmware": {
             "available": True,
+            "upgrade_record_id": upgrade_record.get("id") if upgrade_record else "",
             "board": board,
             "version": latest_version,
             "url": manifest["url"],
@@ -234,13 +237,14 @@ async def build_ota_response(
     }
 
 
-def _record_ota_check(record_store: OtaUpgradeRecordStore | None, record: dict[str, Any]) -> None:
+def _record_ota_check(record_store: OtaUpgradeRecordStore | None, record: dict[str, Any]) -> dict[str, Any] | None:
     if record_store is None:
-        return
+        return None
     try:
-        record_store.add_record(record)
+        return record_store.add_record(record)
     except Exception as exc:
         logger.warning("failed to save OTA upgrade record: %s", exc)
+        return None
 
 
 def firmware_file_response(settings: Settings, firmware_name: str, board: str | None = None) -> FileResponse:

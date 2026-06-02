@@ -214,7 +214,26 @@ OTA 升级请求记录：
 curl http://14.103.183.47:8010/api/v1/ota-upgrade-records
 ```
 
-每次设备请求 `POST /v1/firmware/ota/` 都会记录来源 IP、请求时间、Device-Id、Client-Id、板型、当前版本、目标版本、包名和结果。前端“任务输出”下面的“OTA升级记录”区域会展示这些记录和统计信息。这里的“已下发”表示服务端已向设备返回可升级 manifest；设备是否最终写入成功，需要固件端后续增加升级完成回调才能精确记录。
+只有服务端实际向设备下发可升级 manifest，或者本应下发但签名/文件异常时，才会记录来源 IP、请求时间、Device-Id、Client-Id、板型、当前版本、目标版本、包名和结果。普通开机检查得到“无升级”不会写入记录，避免用户量大时产生大量冗余数据。
+
+服务端下发升级时会先按“默认成功”记录。如果固件端升级完成后主动上报，服务端会用设备上报结果覆盖这条记录：
+
+```bash
+curl -X POST http://14.103.183.47:8010/v1/firmware/ota/result \
+  -H 'Content-Type: application/json' \
+  -H 'Device-Id: AA:BB:CC:DD:EE:FF' \
+  -H 'Client-Id: device-uuid' \
+  -d '{
+    "record_id": "服务端下发的 upgrade_record_id",
+    "success": true,
+    "board": "fogseek-nano",
+    "version": "2.1.1",
+    "package_name": "20260601153000_2.1.1_ota.bin",
+    "error": ""
+  }'
+```
+
+如果固件端暂时不上报，记录会一直保持“默认成功”。如果上报失败，将显示为“失败”。
 
 发布时服务端会：
 

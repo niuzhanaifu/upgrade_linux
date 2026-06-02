@@ -404,7 +404,7 @@ h2 {
   background: #fbfcfd;
 }
 
-.ota-record-item.offered {
+.ota-record-item.success {
   border-color: #b9dcc7;
   background: #f7fcf8;
 }
@@ -436,7 +436,7 @@ h2 {
   font-weight: 800;
 }
 
-.ota-status.offered {
+.ota-status.success {
   background: #e8f6ed;
   color: #167247;
 }

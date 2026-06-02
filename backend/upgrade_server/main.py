@@ -35,6 +35,15 @@ class OtaPublishRequest(BaseModel):
     board: str | None = None
 
 
+class OtaUpgradeResultRequest(BaseModel):
+    success: bool
+    record_id: str = ""
+    board: str = ""
+    version: str = ""
+    package_name: str = ""
+    error: str = ""
+
+
 @app.on_event("startup")
 def startup() -> None:
     start_cleanup_scheduler(jobs, settings)
@@ -193,6 +202,26 @@ def list_ota_upgrade_records() -> dict:
 @app.post("/v1/firmware/ota/")
 async def check_firmware_ota(request: Request) -> dict:
     return await build_ota_response(request, settings, ota_upgrade_record_store)
+
+
+@app.post("/v1/firmware/ota/result")
+def report_firmware_ota_result(request: Request, report: OtaUpgradeResultRequest) -> dict:
+    device_id = request.headers.get("device-id", "")
+    client_id = request.headers.get("client-id", "")
+    forwarded_for = request.headers.get("x-forwarded-for", "")
+    ip = forwarded_for.split(",", 1)[0].strip() if forwarded_for else (request.client.host if request.client else "")
+    record = ota_upgrade_record_store.update_result(
+        record_id=report.record_id,
+        device_id=device_id,
+        client_id=client_id,
+        board=report.board,
+        package_name=report.package_name,
+        target_version=report.version,
+        success=report.success,
+        error=report.error,
+        ip=ip,
+    )
+    return {"record": record}
 
 
 @app.get("/firmwares/{board}/{firmware_name}")

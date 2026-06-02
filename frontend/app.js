@@ -130,11 +130,20 @@ function recordStatusText(status) {
 
 function otaRecordStatusText(status) {
   const statusMap = {
-    offered: "已下发",
-    no_update: "无升级",
+    success: "成功",
     failed: "失败",
   };
   return statusMap[status] || status || "-";
+}
+
+function otaRecordResultText(record) {
+  if (record.status === "success" && record.result_source === "default") {
+    return "默认成功";
+  }
+  if (record.status === "success" && record.result_source === "device") {
+    return "设备成功";
+  }
+  return otaRecordStatusText(record.status);
 }
 
 function modeText(mode) {
@@ -272,10 +281,10 @@ async function loadOtaUpgradeRecords() {
   const records = data.records || [];
 
   otaStats.innerHTML = [
-    ["总请求", stats.total || 0],
-    ["已下发", stats.offered || 0],
-    ["无升级", stats.no_update || 0],
+    ["总升级", stats.total || 0],
+    ["成功", stats.success || 0],
     ["失败", stats.failed || 0],
+    ["已上报", stats.reported || 0],
     ["IP数", stats.unique_ips || 0],
   ]
     .map(
@@ -301,15 +310,17 @@ async function loadOtaUpgradeRecords() {
         <div class="ota-record-item ${escapeHtml(status)}">
           <div class="ota-record-main">
             <strong>${escapeHtml(record.ip || "-")}</strong>
-            <span class="ota-status ${escapeHtml(status)}">${otaRecordStatusText(status)}</span>
+            <span class="ota-status ${escapeHtml(status)}">${otaRecordResultText(record)}</span>
           </div>
           <div class="ota-record-grid">
             <span>时间</span><strong>${formatTime(record.requested_at)}</strong>
             <span>板型</span><strong>${escapeHtml(record.board || "-")}</strong>
             <span>当前版本</span><strong>${escapeHtml(record.current_version || "-")}</strong>
             <span>目标版本</span><strong>${escapeHtml(record.target_version || "-")}</strong>
+            <span>上报</span><strong>${formatTime(record.reported_at)}</strong>
+            <span>来源</span><strong>${escapeHtml(record.result_source || "-")}</strong>
           </div>
-          <div class="record-path">${escapeHtml(record.package_name || record.reason || "-")}</div>
+          <div class="record-path">${escapeHtml(record.package_name || record.report_error || record.reason || "-")}</div>
         </div>
       `;
     })
