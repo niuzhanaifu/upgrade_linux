@@ -1,13 +1,13 @@
 # ESP32 Upgrade Server
 
-一个用于 Linux 服务器的 ESP32 代码拉取、编译、固件升级管理页面。
+一个用于 Linux 服务器的 ESP32 代码拉取、编译、固件升级包查询和 OTA 发布管理页面。
 
 ## 功能
 
-- 前端页面：编译、升级、日志查看、配置状态展示。
-- 后端接口：启动编译任务、启动升级任务、查询任务状态和日志。
+- 前端页面：编译、升级包查询、日志查看、配置状态展示。
+- 后端接口：启动编译任务、查询升级包、查询任务状态和日志。
 - 编译流程：调用配置的编译脚本，执行增量或全量编译。
-- 升级流程：执行配置的升级命令，可使用最新固件路径。
+- 升级包查询：扫描 OTA 包目录，并在任务输出窗口显示匹配到的 OTA 包。
 - 默认端口：`8010`，不会和 `DA_FU_WENG_APP` 股票服务默认的 `8000` 冲突。
 
 ## 本地运行
@@ -28,14 +28,14 @@ http://服务器IP:8010
 
 ## 后续需要补充的配置
 
-这些配置先允许为空，补上后就可以真实拉代码、编译和升级。
+这些配置先允许为空，补上后就可以真实拉代码、编译和查询升级包。
 
 ```bash
 export ESP_UPGRADE_REPO_URL="https://github.com/your-org/your-esp32-project.git"
 export ESP_UPGRADE_REPO_BRANCH="main"
 export ESP_UPGRADE_BUILD_COMMAND="idf.py build"
 export ESP_UPGRADE_FIRMWARE_PATH="/codebase/upgrade_linux/work/source/build/app.bin"
-export ESP_UPGRADE_UPGRADE_COMMAND="python3 tools/upgrade.py --firmware {firmware}"
+export ESP_UPGRADE_OTA_PACKAGE_DIR="/root/codebase/esp32/projects/release/ota"
 ```
 
 常用环境变量：
@@ -60,18 +60,25 @@ export ESP_UPGRADE_UPGRADE_COMMAND="python3 tools/upgrade.py --firmware {firmwar
 | `ESP_UPGRADE_BUILD_COMMAND` | 空 | 旧编译命令配置，当前编译接口使用脚本 |
 | `ESP_UPGRADE_BUILD_WORKDIR` | `$ESP_UPGRADE_SOURCE_DIR` | 编译命令运行目录 |
 | `ESP_UPGRADE_FIRMWARE_PATH` | 空 | 固件路径 |
-| `ESP_UPGRADE_UPGRADE_COMMAND` | 空 | 升级命令，支持 `{firmware}` 和 `{source_dir}` |
+| `ESP_UPGRADE_UPGRADE_COMMAND` | 空 | 旧升级命令配置，当前前端升级按钮不再调用 |
+| `ESP_UPGRADE_OTA_PACKAGE_DIR` | `/root/codebase/esp32/projects/release/ota` | 前端“获取升级包信息”扫描的 OTA 包目录 |
+| `ESP_UPGRADE_OTA_PUBLISH_DIR` | `/root/codebase/esp32/projects/release/ota_publish` | 前端 OTA 发布复制到的目录 |
+| `ESP_UPGRADE_OTA_PUBLISH_HISTORY_PATH` | `$ESP_UPGRADE_BASE_DIR/ota_publish_history.json` | OTA 发布历史记录文件 |
+| `ESP_OTA_DEFAULT_BOARD` | `fogseek-nano` | 默认发布板型 |
+| `ESP_OTA_SIGN_PRIVATE_KEY_PATH` | `/root/codebase/esp32/projects/release/keys/ota_sign_private.pem` | OTA manifest ECDSA P-256 私钥 |
+| `ESP_OTA_SIGN_PUBLIC_KEY_PATH` | `/root/codebase/esp32/projects/release/keys/ota_sign_public.pem` | OTA manifest 公钥，给固件端内置 |
+| `ESP_OTA_AUTO_GENERATE_TEST_KEYS` | `1` | 研发测试阶段私钥不存在时自动生成测试密钥 |
 
 ## ESP32 Release OTA
 
-固件发布接口已经集成到同一个服务里，不需要再起一个端口：
+固件发布接口已经集成到同一个服务里，不需要再起一个端口。研发测试阶段使用 HTTP 传输，但 OTA 检查接口会返回带签名的 manifest 字段，设备端应校验 `signature` 和下载后的 `sha256`：
 
 ```text
 POST http://14.103.183.47:8010/v1/firmware/ota/
-GET  http://14.103.183.47:8010/firmwares/xiaozhi.bin
+GET  http://14.103.183.47:8010/firmwares/fogseek-nano/<timestamp>_<version>_ota.bin
 ```
 
-服务器只发布 app 固件，也就是 ESP-IDF 构建出来的 `build/xiaozhi.bin`。不要把 `merged-binary.bin` 放给 OTA 下载。
+服务器只发布 app 固件，也就是 ESP-IDF 构建出来的 `build/xiaozhi.bin`，发布后统一命名为 `<时间戳>_<版本号>_ota.bin`。不要把 `merged-binary.bin` 放给 OTA 下载。
 
 把固件复制到服务器：
 
@@ -88,6 +95,10 @@ ESP_OTA_LATEST_VERSION=2.1.1
 ESP_OTA_FIRMWARE_DIR=/codebase/upgrade_linux/firmwares
 ESP_OTA_FIRMWARE_FILE=xiaozhi.bin
 ESP_OTA_FORCE=0
+ESP_OTA_DEFAULT_BOARD=fogseek-nano
+ESP_OTA_SIGN_PRIVATE_KEY_PATH=/root/codebase/esp32/projects/release/keys/ota_sign_private.pem
+ESP_OTA_SIGN_PUBLIC_KEY_PATH=/root/codebase/esp32/projects/release/keys/ota_sign_public.pem
+ESP_OTA_AUTO_GENERATE_TEST_KEYS=1
 ```
 
 然后重启：
@@ -140,7 +151,7 @@ chmod +x deploy/install.sh
 ./deploy/install.sh
 ```
 
-ESP32 代码仓库、编译命令、升级命令建议写在服务器的 `/etc/esp32-upgrade.env`，重新部署不会覆盖这个文件。
+ESP32 代码仓库、编译脚本和升级包目录建议写在服务器的 `/etc/esp32-upgrade.env`，重新部署不会覆盖这个文件。
 
 ## 编译接口
 
@@ -173,6 +184,63 @@ curl -OJ http://14.103.183.47:8010/api/v1/firmwares/{record_id}/download
 ```
 
 服务端每天北京时间 03:00 会清理超过 14 天的内存任务日志、编译记录和记录里指向的固件文件，避免固件持续占用服务器空间。
+
+查询 OTA 升级包信息：
+
+```bash
+curl -X POST http://14.103.183.47:8010/api/v1/upgrade
+curl http://14.103.183.47:8010/api/v1/jobs/{job_id}/logs
+```
+
+该接口会扫描 `ESP_UPGRADE_OTA_PACKAGE_DIR`，默认目录是 `/root/codebase/esp32/projects/release/ota`。只有符合 `<时间戳>_<版本号>_ota.bin` 格式的文件会显示在任务输出里，例如 `20260601153000_2.1.0_ota.bin`。
+
+OTA 发布接口：
+
+```bash
+curl http://14.103.183.47:8010/api/v1/ota-packages
+curl -X POST http://14.103.183.47:8010/api/v1/ota-publish \
+  -H 'Content-Type: application/json' \
+  -d '{"package_name":"20260601_153012_2.1.0_ota.bin","password":"300075"}'
+curl http://14.103.183.47:8010/api/v1/ota-publish/history
+```
+
+发布成功后会创建 `ESP_UPGRADE_OTA_PUBLISH_DIR`，删除目录里的旧发布文件，然后把用户选择的 OTA 包复制进去，并写入发布历史。
+
+发布时服务端会：
+
+- 复制 OTA 包到 `ESP_UPGRADE_OTA_PUBLISH_DIR/<board>/`。
+- 计算固件 `size` 和 `sha256`。
+- 使用 ECDSA P-256 私钥对固定格式签名原文签名。
+- 在发布目录写入 `manifest.json`。
+- OTA 检查接口根据设备上报的 `board` 和当前版本返回 `available=true/false`。
+
+返回给设备的新 manifest 格式：
+
+```json
+{
+  "firmware": {
+    "available": true,
+    "board": "fogseek-nano",
+    "version": "2.1.1",
+    "url": "http://14.103.183.47:8010/firmwares/fogseek-nano/20260601153000_2.1.1_ota.bin",
+    "size": 2275120,
+    "sha256": "64位小写hex",
+    "sign_alg": "ecdsa-p256-sha256",
+    "signature": "base64签名",
+    "force": 0
+  }
+}
+```
+
+签名原文固定为：
+
+```text
+board=<board>
+version=<version>
+url=<url>
+size=<size>
+sha256=<sha256>
+```
 
 成功后的 `job.result` 示例：
 

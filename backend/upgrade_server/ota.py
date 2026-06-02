@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import logging
 import re
 from pathlib import Path
@@ -9,6 +10,7 @@ from fastapi import HTTPException, Request
 from fastapi.responses import FileResponse
 
 from .config import Settings
+from .ota_publish import SIGN_ALG, normalize_board, package_info, verify_manifest_signature
 
 
 logger = logging.getLogger("upgrade_server.ota")
@@ -59,6 +61,38 @@ def extract_current_version(body: Any) -> str:
     return ""
 
 
+def extract_board(body: Any, request: Request, settings: Settings) -> str:
+    if isinstance(body, dict):
+        board = _find_string_value(body, {"board", "board_type", "board_name", "boardType"})
+        if board:
+            return normalize_board(board)
+
+    user_agent = request.headers.get("user-agent", "")
+    if "/" in user_agent:
+        candidate = user_agent.split("/", 1)[0].strip()
+        if candidate:
+            return normalize_board(candidate)
+
+    return normalize_board(settings.ota_default_board)
+
+
+def _find_string_value(value: Any, keys: set[str]) -> str:
+    if isinstance(value, dict):
+        for key, item in value.items():
+            if key in keys and isinstance(item, str) and item.strip():
+                return item.strip()
+        for item in value.values():
+            found = _find_string_value(item, keys)
+            if found:
+                return found
+    elif isinstance(value, list):
+        for item in value:
+            found = _find_string_value(item, keys)
+            if found:
+                return found
+    return ""
+
+
 def parse_version(version: str) -> list[int]:
     parts = re.findall(r"\d+", version)
     return [int(part) for part in parts]
@@ -96,35 +130,68 @@ async def build_ota_response(request: Request, settings: Settings) -> dict:
     body = await read_request_body(request)
     headers = selected_headers(request)
     current_version = extract_current_version(body)
-    latest_version = settings.ota_latest_version or current_version
-    path = firmware_path(settings)
-    file_exists = path.is_file()
-    has_update = settings.ota_force or not current_version or is_newer_version(current_version, latest_version)
-    url = build_firmware_url(request, settings) if latest_version and file_exists and has_update else ""
+    board = extract_board(body, request, settings)
+    manifest = load_published_manifest(settings, board)
+    latest_version = str(manifest.get("version") or "") if manifest else ""
+    package_name = str(manifest.get("package_name") or "") if manifest else ""
+    path = published_firmware_path(settings, board, package_name) if package_name else None
+    file_exists = bool(path and path.is_file())
+    force = bool(settings.ota_force or int(manifest.get("force", 0))) if manifest else settings.ota_force
+    has_update = bool(manifest) and file_exists and (force or not current_version or is_newer_version(current_version, latest_version))
+    signature_ok = bool(manifest and verify_manifest_signature(settings, manifest))
 
     log_payload: dict[str, Any] = {
         "headers": headers,
+        "board": board,
         "current_version": current_version,
         "latest_version": latest_version,
-        "firmware_file": str(path),
+        "firmware_file": str(path) if path else "",
         "firmware_exists": file_exists,
-        "force": settings.ota_force,
-        "offer_url": bool(url),
+        "force": force,
+        "signature_ok": signature_ok,
+        "offer_update": has_update and signature_ok,
     }
     if settings.ota_log_body:
         log_payload["body"] = body
     logger.info("ota check: %s", log_payload)
 
+    if not manifest or not has_update or not signature_ok:
+        return {"firmware": {"available": False}}
+
     return {
         "firmware": {
+            "available": True,
+            "board": board,
             "version": latest_version,
-            "url": url,
-            "force": 1 if settings.ota_force else 0,
+            "url": manifest["url"],
+            "size": int(manifest["size"]),
+            "sha256": str(manifest["sha256"]).lower(),
+            "sign_alg": SIGN_ALG,
+            "signature": manifest["signature"],
+            "force": 1 if force else 0,
         }
     }
 
 
-def firmware_file_response(settings: Settings, firmware_name: str) -> FileResponse:
+def firmware_file_response(settings: Settings, firmware_name: str, board: str | None = None) -> FileResponse:
+    if board:
+        board_name = normalize_board(board)
+        if Path(firmware_name).name != firmware_name:
+            raise HTTPException(status_code=400, detail="invalid firmware filename")
+        path = published_firmware_path(settings, board_name, firmware_name)
+        root = (settings.ota_publish_dir / board_name).resolve()
+        if path.parent != root:
+            raise HTTPException(status_code=400, detail="invalid firmware path")
+        if package_info(path) is None:
+            raise HTTPException(status_code=400, detail="invalid OTA package filename")
+        if not path.is_file():
+            raise HTTPException(status_code=404, detail="firmware file not found")
+        return FileResponse(
+            path,
+            media_type="application/octet-stream",
+            filename=firmware_name,
+        )
+
     root = settings.ota_firmware_dir.resolve()
     path = firmware_path(settings, firmware_name)
 
@@ -140,3 +207,51 @@ def firmware_file_response(settings: Settings, firmware_name: str) -> FileRespon
         media_type="application/octet-stream",
         filename=firmware_name,
     )
+
+
+def load_published_manifest(settings: Settings, board: str) -> dict[str, object] | None:
+    manifest_path = settings.ota_publish_dir / board / "manifest.json"
+    if not manifest_path.is_file():
+        return None
+    try:
+        with manifest_path.open("r", encoding="utf-8") as file:
+            manifest = json.load(file)
+    except (OSError, json.JSONDecodeError):
+        return None
+    if not isinstance(manifest, dict):
+        return None
+    if not _manifest_has_required_fields(manifest):
+        return None
+    if str(manifest["board"]) != board:
+        return None
+    package_name = str(manifest["package_name"])
+    path = published_firmware_path(settings, board, package_name)
+    if not path.is_file():
+        return None
+    current_info = package_info(path)
+    if current_info is None:
+        return None
+    if int(current_info["size"]) != int(manifest["size"]):
+        return None
+    if str(current_info["sha256"]).lower() != str(manifest["sha256"]).lower():
+        return None
+    return manifest
+
+
+def published_firmware_path(settings: Settings, board: str, firmware_name: str) -> Path:
+    return (settings.ota_publish_dir / normalize_board(board) / Path(firmware_name).name).resolve()
+
+
+def _manifest_has_required_fields(manifest: dict[str, object]) -> bool:
+    required = {"board", "version", "url", "size", "sha256", "sign_alg", "signature", "package_name"}
+    if not required.issubset(manifest):
+        return False
+    if manifest.get("sign_alg") != SIGN_ALG:
+        return False
+    if not re.fullmatch(r"[0-9a-f]{64}", str(manifest.get("sha256", ""))):
+        return False
+    try:
+        int(manifest["size"])
+    except (TypeError, ValueError):
+        return False
+    return True

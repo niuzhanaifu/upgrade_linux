@@ -25,7 +25,7 @@
         <div class="section-heading">
           <div>
             <h2>操作</h2>
-            <p>拉取代码、编译固件、执行升级</p>
+            <p>拉取代码、编译固件、查询升级包</p>
           </div>
         </div>
         <div class="action-grid">
@@ -39,10 +39,22 @@
           </button>
           <button class="secondary-button" id="upgradeButton" type="button">
             <span class="button-icon">↑</span>
-            <span>升级</span>
+            <span>获取升级包信息</span>
           </button>
         </div>
         <div class="config-list" id="configList"></div>
+        <div class="publish-panel" id="otaPublishPanel" hidden>
+          <div class="publish-heading">
+            <strong>OTA发布</strong>
+            <span id="otaPublishStatus">选择一个升级包后发布</span>
+          </div>
+          <label class="form-label" for="otaPackageSelect">升级包</label>
+          <select class="form-control" id="otaPackageSelect"></select>
+          <label class="form-label" for="otaPublishPassword">发布密码</label>
+          <input class="form-control" id="otaPublishPassword" type="password" autocomplete="current-password" />
+          <button class="primary-button publish-submit" id="otaPublishSubmit" type="button">发布</button>
+          <div class="publish-history" id="otaPublishHistory"></div>
+        </div>
       </section>
 
       <section class="panel log-panel">
@@ -60,7 +72,7 @@
         <div class="section-heading">
           <div>
             <h2>历史任务</h2>
-            <p>最近的编译和升级记录</p>
+            <p>最近的编译和升级包查询记录</p>
           </div>
         </div>
         <div class="job-list" id="jobList"></div>

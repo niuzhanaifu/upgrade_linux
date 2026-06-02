@@ -12,6 +12,7 @@ from .cleanup_scheduler import start_cleanup_scheduler
 from .config import settings
 from .job_manager import JobManager
 from .ota import build_ota_response, firmware_file_response
+from .ota_publish import OtaPublishStore, PublishError, publish_ota_package, scan_ota_packages
 
 
 ROOT_DIR = Path(__file__).resolve().parents[2]
@@ -19,10 +20,17 @@ FRONTEND_DIR = ROOT_DIR / "frontend"
 
 app = FastAPI(title="ESP32 Upgrade Server", version=__version__)
 jobs = JobManager(settings)
+ota_publish_store = OtaPublishStore(settings)
 
 
 class BuildRequest(BaseModel):
     full: bool = False
+
+
+class OtaPublishRequest(BaseModel):
+    package_name: str
+    password: str
+    board: str | None = None
 
 
 @app.on_event("startup")
@@ -57,6 +65,13 @@ def config() -> dict:
         "cleanup_minute": settings.cleanup_minute,
         "firmware_path": settings.firmware_path,
         "upgrade_command_configured": bool(settings.upgrade_command),
+        "ota_package_dir": str(settings.ota_package_dir),
+        "ota_package_dir_configured": bool(settings.ota_package_dir),
+        "ota_publish_dir": str(settings.ota_publish_dir),
+        "ota_default_board": settings.ota_default_board,
+        "ota_sign_public_key_path": str(settings.ota_sign_public_key_path),
+        "ota_sign_private_key_configured": settings.ota_sign_private_key_path.is_file(),
+        "ota_auto_generate_test_keys": settings.ota_auto_generate_test_keys,
         "ota_public_base_url": settings.ota_public_base_url,
         "ota_latest_version": settings.ota_latest_version,
         "ota_firmware_dir": str(settings.ota_firmware_dir),
@@ -141,9 +156,37 @@ def download_built_firmware(record_id: str) -> FileResponse:
     return FileResponse(path, media_type="application/octet-stream", filename=path.name)
 
 
+@app.get("/api/v1/ota-packages")
+def list_ota_packages() -> dict:
+    try:
+        packages = scan_ota_packages(settings.ota_package_dir)
+    except PublishError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {"directory": str(settings.ota_package_dir), "packages": packages}
+
+
+@app.get("/api/v1/ota-publish/history")
+def list_ota_publish_history() -> dict:
+    return {"records": ota_publish_store.list_records()}
+
+
+@app.post("/api/v1/ota-publish")
+def publish_ota(request: OtaPublishRequest) -> dict:
+    try:
+        record = publish_ota_package(settings, ota_publish_store, request.package_name, request.password, request.board)
+    except PublishError as exc:
+        raise HTTPException(status_code=exc.status_code, detail=str(exc)) from exc
+    return {"record": record}
+
+
 @app.post("/v1/firmware/ota/")
 async def check_firmware_ota(request: Request) -> dict:
     return await build_ota_response(request, settings)
+
+
+@app.get("/firmwares/{board}/{firmware_name}")
+def download_board_firmware(board: str, firmware_name: str) -> FileResponse:
+    return firmware_file_response(settings, firmware_name, board)
 
 
 @app.get("/firmwares/{firmware_name}")

@@ -12,6 +12,7 @@ from typing import Callable
 
 from .build_records import BuildRecordStore
 from .config import Settings
+from .ota_publish import scan_ota_packages
 
 
 Status = str
@@ -158,21 +159,39 @@ class JobManager:
         self._set_status(job, "running")
         try:
             self.settings.base_dir.mkdir(parents=True, exist_ok=True)
-            self._append(job, "Upgrade started.")
-            if not self.settings.upgrade_command:
-                raise RuntimeError("ESP_UPGRADE_UPGRADE_COMMAND is empty. Configure it before running upgrade.")
-            firmware = self.settings.firmware_path
-            if not firmware:
-                raise RuntimeError("ESP_UPGRADE_FIRMWARE_PATH is empty. Configure it before running upgrade.")
-            if not Path(firmware).expanduser().exists():
-                self._append(job, f"WARNING: firmware path does not exist yet: {firmware}")
-            command = self.settings.upgrade_command.format(
-                firmware=shlex.quote(firmware),
-                source_dir=shlex.quote(str(self.settings.source_dir)),
+            self._append(job, "Upgrade package scan started.")
+            directory = self.settings.ota_package_dir
+            self._append(job, f"Scan directory: {directory}")
+            if not directory.exists():
+                raise RuntimeError(f"OTA package directory does not exist: {directory}")
+            if not directory.is_dir():
+                raise RuntimeError(f"OTA package path is not a directory: {directory}")
+
+            packages = scan_ota_packages(directory)
+            self._set_job_result(
+                job,
+                {
+                    "directory": str(directory),
+                    "count": len(packages),
+                    "packages": packages,
+                },
             )
-            self._run_shell(job, command, self.settings.build_workdir)
+            self._append(job, f"Found {len(packages)} OTA package(s).")
+            if not packages:
+                self._append(job, "No OTA package matched: <timestamp>_<version>_ota.bin")
+            for index, package in enumerate(packages, start=1):
+                self._append(job, f"[{index}] {package['name']}")
+                self._append(
+                    job,
+                    (
+                        f"    version={package['version']} "
+                        f"timestamp={package['timestamp']} "
+                        f"size={package['size']} bytes"
+                    ),
+                )
+                self._append(job, f"    path={package['path']}")
             self._set_status(job, "succeeded", 0)
-            self._append(job, "Upgrade finished successfully.")
+            self._append(job, "Upgrade package scan finished.")
         except Exception as exc:
             self._append(job, f"ERROR: {exc}")
             self._set_status(job, "failed", 1)

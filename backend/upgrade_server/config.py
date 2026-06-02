@@ -41,6 +41,28 @@ class Settings:
     build_full_arg: str = os.getenv("ESP_UPGRADE_BUILD_FULL_ARG", "--full").strip()
     firmware_path: str = os.getenv("ESP_UPGRADE_FIRMWARE_PATH", "").strip()
     upgrade_command: str = os.getenv("ESP_UPGRADE_UPGRADE_COMMAND", "").strip()
+    ota_package_dir: Path = _path_from_env(
+        "ESP_UPGRADE_OTA_PACKAGE_DIR",
+        "/root/codebase/esp32/projects/release/ota",
+    )
+    ota_publish_dir: Path = _path_from_env(
+        "ESP_UPGRADE_OTA_PUBLISH_DIR",
+        "/root/codebase/esp32/projects/release/ota_publish",
+    )
+    ota_publish_history_path: Path = _path_from_env(
+        "ESP_UPGRADE_OTA_PUBLISH_HISTORY_PATH",
+        str(_path_from_env("ESP_UPGRADE_BASE_DIR", "./var") / "ota_publish_history.json"),
+    )
+    ota_default_board: str = os.getenv("ESP_OTA_DEFAULT_BOARD", "fogseek-nano").strip()
+    ota_sign_private_key_path: Path = _path_from_env(
+        "ESP_OTA_SIGN_PRIVATE_KEY_PATH",
+        "/root/codebase/esp32/projects/release/keys/ota_sign_private.pem",
+    )
+    ota_sign_public_key_path: Path = _path_from_env(
+        "ESP_OTA_SIGN_PUBLIC_KEY_PATH",
+        "/root/codebase/esp32/projects/release/keys/ota_sign_public.pem",
+    )
+    ota_auto_generate_test_keys: bool = _bool_from_env("ESP_OTA_AUTO_GENERATE_TEST_KEYS", "1")
     max_log_lines: int = int(os.getenv("ESP_UPGRADE_MAX_LOG_LINES", "3000"))
     build_records_path: Path = _path_from_env(
         "ESP_UPGRADE_BUILD_RECORDS_PATH",

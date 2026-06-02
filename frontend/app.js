@@ -3,6 +3,7 @@ const state = {
   logOffset: 0,
   pollTimer: null,
   selectedFirmwareId: null,
+  otaPackages: [],
 };
 
 const serviceStatus = document.querySelector("#serviceStatus");
@@ -22,6 +23,12 @@ const incrementalBuildButton = document.querySelector("#incrementalBuildButton")
 const fullBuildButton = document.querySelector("#fullBuildButton");
 const upgradeButton = document.querySelector("#upgradeButton");
 const refreshButton = document.querySelector("#refreshButton");
+const otaPublishPanel = document.querySelector("#otaPublishPanel");
+const otaPackageSelect = document.querySelector("#otaPackageSelect");
+const otaPublishPassword = document.querySelector("#otaPublishPassword");
+const otaPublishSubmit = document.querySelector("#otaPublishSubmit");
+const otaPublishStatus = document.querySelector("#otaPublishStatus");
+const otaPublishHistory = document.querySelector("#otaPublishHistory");
 
 async function api(path, options = {}) {
   const response = await fetch(path, {
@@ -63,8 +70,7 @@ function renderConfig(config) {
     ["代码仓库", config.repo_configured],
     ["编译脚本", config.build_script_configured],
     ["固件路径", Boolean(config.firmware_path)],
-    ["升级命令", config.upgrade_command_configured],
-    ["OTA发布", config.ota_firmware_configured],
+    ["升级包目录", config.ota_package_dir_configured],
   ];
   configList.innerHTML = rows
     .map(([label, ready]) => {
@@ -73,6 +79,11 @@ function renderConfig(config) {
       return `<div class="config-row"><strong>${label}</strong><span class="tag ${tagClass}">${tagText}</span></div>`;
     })
     .join("");
+  configList.insertAdjacentHTML(
+    "beforeend",
+    `<div class="config-row"><strong>OTA发布</strong><button class="inline-button" id="showOtaPublishButton" type="button">发布</button></div>`,
+  );
+  document.querySelector("#showOtaPublishButton").addEventListener("click", showOtaPublishPanel);
 }
 
 function escapeHtml(value) {
@@ -93,7 +104,7 @@ function jobLabel(job) {
     build: "编译",
     build_incremental: "增量编译",
     build_full: "全量编译",
-    upgrade: "升级",
+    upgrade: "获取升级包",
   };
   const kind = kindMap[job.kind] || job.kind;
   const statusMap = {
@@ -117,6 +128,13 @@ function recordStatusText(status) {
 
 function modeText(mode) {
   return mode === "full" ? "全量" : "增量";
+}
+
+function formatSize(size) {
+  if (!Number.isFinite(Number(size))) {
+    return "-";
+  }
+  return `${Math.ceil(Number(size) / 1024)} KB`;
 }
 
 function setButtonsBusy(busy) {
@@ -237,6 +255,98 @@ async function loadBuildRecords() {
   });
 }
 
+async function showOtaPublishPanel() {
+  otaPublishPanel.hidden = false;
+  otaPublishStatus.textContent = "正在读取升级包...";
+  await Promise.all([loadOtaPackages(), loadOtaPublishHistory()]);
+}
+
+async function loadOtaPackages() {
+  try {
+    const data = await api("/api/v1/ota-packages");
+    state.otaPackages = data.packages || [];
+    if (!state.otaPackages.length) {
+      otaPackageSelect.innerHTML = `<option value="">没有可发布的 OTA 包</option>`;
+      otaPublishSubmit.disabled = true;
+      otaPublishStatus.textContent = "没有找到符合格式的 OTA 包";
+      return;
+    }
+
+    otaPackageSelect.innerHTML = state.otaPackages
+      .map((item) => {
+        const label = `${item.name} · ${item.version} · ${formatSize(item.size)}`;
+        return `<option value="${escapeHtml(item.name)}">${escapeHtml(label)}</option>`;
+      })
+      .join("");
+    otaPublishSubmit.disabled = false;
+    otaPublishStatus.textContent = `已找到 ${state.otaPackages.length} 个 OTA 包`;
+  } catch (error) {
+    otaPackageSelect.innerHTML = `<option value="">读取失败</option>`;
+    otaPublishSubmit.disabled = true;
+    otaPublishStatus.textContent = `读取失败：${error.message}`;
+  }
+}
+
+async function loadOtaPublishHistory() {
+  try {
+    const data = await api("/api/v1/ota-publish/history");
+    const records = data.records || [];
+    if (!records.length) {
+      otaPublishHistory.innerHTML = `<p class="empty">暂无发布历史</p>`;
+      return;
+    }
+    otaPublishHistory.innerHTML = records
+      .slice(0, 5)
+      .map(
+        (record) => `
+          <div class="publish-history-item">
+            <strong>${escapeHtml(record.package_name)}</strong>
+            <span>${formatTime(record.published_at)} · ${escapeHtml(record.version || "-")}</span>
+          </div>
+        `,
+      )
+      .join("");
+  } catch (error) {
+    otaPublishHistory.innerHTML = `<p class="empty">读取发布历史失败：${escapeHtml(error.message)}</p>`;
+  }
+}
+
+async function publishOtaPackage() {
+  const packageName = otaPackageSelect.value;
+  const password = otaPublishPassword.value;
+  if (!packageName) {
+    otaPublishStatus.textContent = "请先选择一个 OTA 包";
+    return;
+  }
+  if (!password) {
+    otaPublishStatus.textContent = "请输入发布密码";
+    return;
+  }
+
+  otaPublishSubmit.disabled = true;
+  otaPublishStatus.textContent = "正在发布...";
+  try {
+    const data = await api("/api/v1/ota-publish", {
+      method: "POST",
+      body: JSON.stringify({ package_name: packageName, password }),
+    });
+    otaPublishPassword.value = "";
+    otaPublishStatus.textContent = `已发布：${data.record.package_name}`;
+    logView.textContent = [
+      "OTA发布完成",
+      `包名：${data.record.package_name}`,
+      `版本：${data.record.version}`,
+      `源文件：${data.record.source_path}`,
+      `发布到：${data.record.publish_path}`,
+    ].join("\n");
+    await loadOtaPublishHistory();
+  } catch (error) {
+    otaPublishStatus.textContent = `发布失败：${error.message}`;
+  } finally {
+    otaPublishSubmit.disabled = !state.otaPackages.length;
+  }
+}
+
 async function startJob(kind) {
   const endpoints = {
     build_incremental: "/api/v1/build/incremental",
@@ -299,6 +409,7 @@ async function pollLogs() {
 incrementalBuildButton.addEventListener("click", () => startJob("build_incremental"));
 fullBuildButton.addEventListener("click", () => startJob("build_full"));
 upgradeButton.addEventListener("click", () => startJob("upgrade"));
+otaPublishSubmit.addEventListener("click", publishOtaPackage);
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => switchProductView(button.dataset.target));
 });
