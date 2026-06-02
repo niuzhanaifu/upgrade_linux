@@ -210,6 +210,7 @@ def list_ota_upgrade_records() -> dict:
     return {
         "records": ota_upgrade_record_store.list_records(),
         "stats": ota_upgrade_record_store.stats(),
+        "version_groups": ota_upgrade_record_store.version_groups(),
     }
 
 

@@ -13,6 +13,21 @@ def utc_now() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def stats_for_records(records: list[dict[str, Any]]) -> dict[str, int]:
+    total = len(records)
+    success = sum(1 for item in records if item.get("status") == "success")
+    failed = sum(1 for item in records if item.get("status") == "failed")
+    reported = sum(1 for item in records if item.get("result_source") == "device")
+    unique_ips = len({str(item.get("ip", "")) for item in records if item.get("ip")})
+    return {
+        "total": total,
+        "success": success,
+        "failed": failed,
+        "reported": reported,
+        "unique_ips": unique_ips,
+    }
+
+
 class OtaUpgradeRecordStore:
     def __init__(self, settings: Settings):
         self.settings = settings
@@ -93,18 +108,26 @@ class OtaUpgradeRecordStore:
     def stats(self) -> dict[str, int]:
         with self._lock:
             records = self._load_unlocked()
-        total = len(records)
-        success = sum(1 for item in records if item.get("status") == "success")
-        failed = sum(1 for item in records if item.get("status") == "failed")
-        reported = sum(1 for item in records if item.get("result_source") == "device")
-        unique_ips = len({str(item.get("ip", "")) for item in records if item.get("ip")})
-        return {
-            "total": total,
-            "success": success,
-            "failed": failed,
-            "reported": reported,
-            "unique_ips": unique_ips,
-        }
+        return stats_for_records(records)
+
+    def version_groups(self, limit: int = 100) -> list[dict[str, Any]]:
+        with self._lock:
+            records = self._load_unlocked()[:limit]
+
+        groups: list[dict[str, Any]] = []
+        group_index: dict[str, dict[str, Any]] = {}
+        for record in records:
+            version = str(record.get("target_version") or "未知版本")
+            group = group_index.get(version)
+            if group is None:
+                group = {"version": version, "records": []}
+                group_index[version] = group
+                groups.append(group)
+            group["records"].append(record)
+
+        for group in groups:
+            group["stats"] = stats_for_records(group["records"])
+        return groups
 
     def _find_record_unlocked(
         self,

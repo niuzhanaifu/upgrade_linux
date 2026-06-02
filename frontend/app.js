@@ -147,6 +147,69 @@ function otaRecordResultText(record) {
   return otaRecordStatusText(record.status);
 }
 
+function otaRecordStats(records) {
+  const ipSet = new Set();
+  const stats = records.reduce(
+    (result, record) => {
+      result.total += 1;
+      if (record.status === "success") {
+        result.success += 1;
+      }
+      if (record.status === "failed") {
+        result.failed += 1;
+      }
+      if (record.result_source === "device") {
+        result.reported += 1;
+      }
+      if (record.ip) {
+        ipSet.add(record.ip);
+      }
+      return result;
+    },
+    { total: 0, success: 0, failed: 0, reported: 0, unique_ips: 0 },
+  );
+  stats.unique_ips = ipSet.size;
+  return stats;
+}
+
+function groupOtaRecordsByVersion(records) {
+  const groups = [];
+  const groupMap = new Map();
+  records.forEach((record) => {
+    const version = record.target_version || "未知版本";
+    if (!groupMap.has(version)) {
+      const group = { version, records: [] };
+      groupMap.set(version, group);
+      groups.push(group);
+    }
+    groupMap.get(version).records.push(record);
+  });
+  return groups.map((group) => ({
+    ...group,
+    stats: otaRecordStats(group.records),
+  }));
+}
+
+function renderOtaRecord(record) {
+  const status = record.status || (record.success ? "success" : "failed");
+  return `
+    <div class="ota-record-item ${escapeHtml(status)}">
+      <div class="ota-record-main">
+        <strong>${escapeHtml(record.ip || "-")}</strong>
+        <span class="ota-status ${escapeHtml(status)}">${otaRecordResultText(record)}</span>
+      </div>
+      <div class="ota-record-grid">
+        <span>时间</span><strong>${formatTime(record.requested_at)}</strong>
+        <span>板型</span><strong>${escapeHtml(record.board || "-")}</strong>
+        <span>当前版本</span><strong>${escapeHtml(record.current_version || "-")}</strong>
+        <span>上报</span><strong>${formatTime(record.reported_at)}</strong>
+        <span>来源</span><strong>${escapeHtml(record.result_source || "-")}</strong>
+      </div>
+      <div class="record-path">${escapeHtml(record.package_name || record.report_error || record.reason || "-")}</div>
+    </div>
+  `;
+}
+
 function modeText(mode) {
   return mode === "full" ? "全量" : "增量";
 }
@@ -280,6 +343,7 @@ async function loadOtaUpgradeRecords() {
   const data = await api("/api/v1/ota-upgrade-records");
   const stats = data.stats || {};
   const records = data.records || [];
+  const versionGroups = Array.isArray(data.version_groups) ? data.version_groups : groupOtaRecordsByVersion(records);
 
   otaStats.innerHTML = [
     ["总升级", stats.total || 0],
@@ -298,31 +362,31 @@ async function loadOtaUpgradeRecords() {
     )
     .join("");
 
-  if (!records.length) {
+  if (!versionGroups.length) {
     otaRecordList.innerHTML = `<p class="empty">暂无 OTA 升级请求记录</p>`;
     return;
   }
 
-  otaRecordList.innerHTML = records
-    .slice(0, 20)
-    .map((record) => {
-      const status = record.status || (record.success ? "offered" : "failed");
+  otaRecordList.innerHTML = versionGroups
+    .map((group) => {
+      const groupStats = group.stats || {};
+      const groupRecords = group.records || [];
       return `
-        <div class="ota-record-item ${escapeHtml(status)}">
-          <div class="ota-record-main">
-            <strong>${escapeHtml(record.ip || "-")}</strong>
-            <span class="ota-status ${escapeHtml(status)}">${otaRecordResultText(record)}</span>
+        <section class="ota-version-group">
+          <div class="ota-version-header">
+            <strong>目标版本 ${escapeHtml(group.version || "未知版本")}</strong>
+            <span>
+              总 ${groupStats.total || 0}
+              · 成功 ${groupStats.success || 0}
+              · 失败 ${groupStats.failed || 0}
+              · 已上报 ${groupStats.reported || 0}
+              · IP ${groupStats.unique_ips || 0}
+            </span>
           </div>
-          <div class="ota-record-grid">
-            <span>时间</span><strong>${formatTime(record.requested_at)}</strong>
-            <span>板型</span><strong>${escapeHtml(record.board || "-")}</strong>
-            <span>当前版本</span><strong>${escapeHtml(record.current_version || "-")}</strong>
-            <span>目标版本</span><strong>${escapeHtml(record.target_version || "-")}</strong>
-            <span>上报</span><strong>${formatTime(record.reported_at)}</strong>
-            <span>来源</span><strong>${escapeHtml(record.result_source || "-")}</strong>
+          <div class="ota-version-records">
+            ${groupRecords.map(renderOtaRecord).join("")}
           </div>
-          <div class="record-path">${escapeHtml(record.package_name || record.report_error || record.reason || "-")}</div>
-        </div>
+        </section>
       `;
     })
     .join("");

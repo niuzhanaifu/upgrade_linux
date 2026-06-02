@@ -401,6 +401,40 @@ h2 {
   overflow: auto;
 }
 
+.ota-version-group {
+  display: grid;
+  gap: 8px;
+  padding: 10px;
+  border: 1px solid #dfe6ee;
+  border-radius: 8px;
+  background: #f7f9fb;
+}
+
+.ota-version-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  padding: 2px 2px 6px;
+  border-bottom: 1px solid #e5ebf1;
+}
+
+.ota-version-header strong {
+  color: #263443;
+  font-size: 14px;
+}
+
+.ota-version-header span {
+  color: #667686;
+  font-size: 12px;
+  text-align: right;
+}
+
+.ota-version-records {
+  display: grid;
+  gap: 8px;
+}
+
 .ota-record-item {
   display: grid;
   gap: 8px;
@@ -663,6 +697,15 @@ h2 {
   .ota-stats {
     grid-template-columns: repeat(2, minmax(0, 1fr));
     min-width: 0;
+  }
+
+  .ota-version-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .ota-version-header span {
+    text-align: left;
   }
 
   .ota-record-grid {
