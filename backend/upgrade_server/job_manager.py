@@ -247,6 +247,7 @@ class JobManager:
             "output_dir": None,
             "merged_bin": None,
             "firmware_version": None,
+            "source_commit": None,
             "mode": "full" if full else "incremental",
         }
 
@@ -257,12 +258,104 @@ class JobManager:
                 result["merged_bin"] = line.split("=", 1)[1]
             elif line.startswith("FIRMWARE_VERSION="):
                 result["firmware_version"] = line.split("=", 1)[1]
+            elif line.startswith(("SOURCE_COMMIT=", "GIT_COMMIT=", "COMMIT_HASH=")):
+                result["source_commit"] = {"hash": line.split("=", 1)[1]}
 
         self._append(job, f"$ {' '.join(shlex.quote(part) for part in command)}")
         returncode = self._run_process(job, command, workdir, on_line=parse_build_line, check=False)
         result["returncode"] = returncode
         result["success"] = returncode == 0
+        result["source_commit"] = self._source_commit_from_result(result) or result.get("source_commit")
+        commit = result.get("source_commit")
+        if isinstance(commit, dict) and commit.get("short_hash"):
+            self._append(job, f"Source commit: {commit['short_hash']} {commit.get('subject') or ''}".rstrip())
         return result
+
+    def _source_commit_from_result(self, result: dict[str, object]) -> dict[str, object] | None:
+        candidates: list[Path] = []
+        output_dir = result.get("output_dir")
+        merged_bin = result.get("merged_bin")
+        if output_dir:
+            candidates.append(Path(str(output_dir)).expanduser())
+        if merged_bin:
+            candidates.append(Path(str(merged_bin)).expanduser().parent)
+        candidates.extend(
+            [
+                self.settings.build_script_workdir,
+                self.settings.build_workdir,
+                self.settings.source_dir,
+            ]
+        )
+
+        seen: set[str] = set()
+        for candidate in candidates:
+            try:
+                resolved_candidate = candidate.resolve()
+            except OSError:
+                continue
+            if not resolved_candidate.exists():
+                continue
+            path = resolved_candidate if resolved_candidate.is_dir() else resolved_candidate.parent
+            try:
+                resolved = path.resolve()
+            except OSError:
+                continue
+            key = str(resolved)
+            if key in seen:
+                continue
+            seen.add(key)
+            commit = self._latest_git_commit(resolved)
+            if commit is not None:
+                return commit
+        return None
+
+    def _latest_git_commit(self, directory: Path) -> dict[str, object] | None:
+        root = self._git_output(["rev-parse", "--show-toplevel"], directory)
+        if not root:
+            return None
+
+        repo = Path(root)
+        raw = self._git_output(["log", "-1", "--format=%H%x1f%h%x1f%s%x1f%an%x1f%ae%x1f%cI"], repo)
+        if not raw:
+            return None
+        parts = raw.split("\x1f")
+        if len(parts) != 6:
+            return None
+
+        branch = self._git_output(["rev-parse", "--abbrev-ref", "HEAD"], repo) or ""
+        status = self._git_output(["status", "--porcelain"], repo) or ""
+        return {
+            "hash": parts[0],
+            "short_hash": parts[1],
+            "subject": parts[2],
+            "author": parts[3],
+            "author_email": parts[4],
+            "committed_at": parts[5],
+            "branch": "" if branch == "HEAD" else branch,
+            "repo_path": str(repo),
+            "dirty": bool(status),
+        }
+
+    def _git_output(self, args: list[str], cwd: Path) -> str | None:
+        try:
+            process = subprocess.run(
+                ["git", *args],
+                cwd=str(cwd),
+                stdout=subprocess.PIPE,
+                stderr=subprocess.DEVNULL,
+                text=True,
+                encoding="utf-8",
+                errors="replace",
+                timeout=5,
+                check=False,
+            )
+        except (OSError, subprocess.SubprocessError):
+            return None
+        if process.returncode != 0:
+            return None
+        if process.stdout is None:
+            return None
+        return process.stdout.strip()
 
     def _save_build_record(self, job: Job) -> None:
         if not job.kind.startswith("build"):
@@ -287,6 +380,7 @@ class JobManager:
             "firmware_exists": path.is_file() if path is not None else False,
             "firmware_size": path.stat().st_size if path is not None and path.is_file() else 0,
             "firmware_version": result.get("firmware_version"),
+            "source_commit": result.get("source_commit"),
         }
         self.records.save_record(record)
 

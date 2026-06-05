@@ -537,6 +537,31 @@ h2 {
   gap: 10px;
 }
 
+.record-collapse[open] .record-list,
+.record-collapse[open] .firmware-list {
+  max-height: min(62vh, 560px);
+  overflow-y: auto;
+  overscroll-behavior: contain;
+  padding-right: 6px;
+  scrollbar-gutter: stable;
+}
+
+.record-collapse[open] .record-list::-webkit-scrollbar,
+.record-collapse[open] .firmware-list::-webkit-scrollbar {
+  width: 8px;
+}
+
+.record-collapse[open] .record-list::-webkit-scrollbar-thumb,
+.record-collapse[open] .firmware-list::-webkit-scrollbar-thumb {
+  border-radius: 999px;
+  background: #b8c7d5;
+}
+
+.record-collapse[open] .record-list::-webkit-scrollbar-track,
+.record-collapse[open] .firmware-list::-webkit-scrollbar-track {
+  background: #eef3f7;
+}
+
 .job-item {
   display: grid;
   gap: 5px;

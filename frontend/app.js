@@ -241,6 +241,49 @@ function formatSize(size) {
   return `${Math.ceil(Number(size) / 1024)} KB`;
 }
 
+function formatCommit(commit) {
+  if (!commit || (!commit.hash && !commit.short_hash)) {
+    return "-";
+  }
+  const hash = commit.short_hash || String(commit.hash).slice(0, 12);
+  const subject = commit.subject || "无提交说明";
+  const dirty = commit.dirty ? " · 有未提交改动" : "";
+  return `${hash} · ${subject}${dirty}`;
+}
+
+function formatCommitMeta(commit) {
+  if (!commit || (!commit.hash && !commit.short_hash)) {
+    return "";
+  }
+  return [commit.branch, commit.author, formatTime(commit.committed_at)].filter(Boolean).join(" · ");
+}
+
+function limitListVisibleItems(list, visibleCount = 4) {
+  if (!list) {
+    return;
+  }
+  const items = Array.from(list.children).filter((item) => item.classList.contains("record-item"));
+  if (items.length <= visibleCount) {
+    list.style.maxHeight = "";
+    return;
+  }
+  const styles = window.getComputedStyle(list);
+  const gap = Number.parseFloat(styles.rowGap || styles.gap || "0") || 0;
+  const height =
+    items.slice(0, visibleCount).reduce((total, item) => total + item.getBoundingClientRect().height, 0) +
+    gap * (visibleCount - 1);
+  list.style.maxHeight = `${Math.ceil(height)}px`;
+}
+
+function refreshRecordScrollLimits() {
+  if (firmwareDetails?.open) {
+    limitListVisibleItems(firmwareList);
+  }
+  if (buildRecordDetails?.open) {
+    limitListVisibleItems(buildRecordList);
+  }
+}
+
 function setButtonsBusy(busy) {
   incrementalBuildButton.disabled = busy;
   fullBuildButton.disabled = busy;
@@ -310,6 +353,7 @@ async function loadFirmwares() {
       `;
     })
     .join("");
+  requestAnimationFrame(refreshRecordScrollLimits);
 }
 
 async function loadBuildRecords() {
@@ -329,18 +373,22 @@ async function loadBuildRecords() {
     .slice(0, 20)
     .map((record) => {
       const selectable = record.status === "succeeded" && record.firmware_exists;
+      const commitMeta = formatCommitMeta(record.source_commit);
       return `
         <div class="record-item build-record-item ${selectable ? "clickable" : ""}" data-record-id="${escapeHtml(record.id)}" data-selectable="${selectable ? "1" : "0"}">
           <div class="record-title">${modeText(record.mode)}编译 · ${recordStatusText(record.status)}</div>
           <div class="record-line"><span>触发</span><strong>${formatTime(record.created_at)}</strong></div>
           <div class="record-line"><span>结束</span><strong>${formatTime(record.finished_at)}</strong></div>
           <div class="record-line"><span>版本</span><strong>${escapeHtml(record.firmware_version || "-")}</strong></div>
+          <div class="record-line"><span>最近提交</span><strong>${escapeHtml(formatCommit(record.source_commit))}</strong></div>
+          ${commitMeta ? `<div class="record-path">${escapeHtml(commitMeta)}</div>` : ""}
           <div class="record-path">${escapeHtml(record.output_dir || "无输出目录")}</div>
           <div class="record-path">${escapeHtml(record.merged_bin || "无固件路径")}</div>
         </div>
       `;
     })
     .join("");
+  requestAnimationFrame(refreshRecordScrollLimits);
 
   buildRecordList.querySelectorAll(".build-record-item[data-selectable='1']").forEach((item) => {
     item.addEventListener("click", async () => {
@@ -623,6 +671,10 @@ otaVersionFilter.addEventListener("change", async () => {
 tabButtons.forEach((button) => {
   button.addEventListener("click", () => switchProductView(button.dataset.target));
 });
+[firmwareDetails, buildRecordDetails].forEach((details) => {
+  details?.addEventListener("toggle", () => requestAnimationFrame(refreshRecordScrollLimits));
+});
+window.addEventListener("resize", () => requestAnimationFrame(refreshRecordScrollLimits));
 refreshButton.addEventListener("click", async () => {
   await loadConfig();
   await loadJobs();
